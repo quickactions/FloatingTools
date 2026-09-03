@@ -1,0 +1,44 @@
+bin/
+obj/
+.vs/
+TestResults/
+tmp/
+.local/
+*.user
+*.suo
+*.tmp
+
+# Local publish/release output (regenerated via `dotnet publish`, not source)
+artifacts/
+
+# Stale/external build-tool artifacts
+.codex-build/
+.codex-obj/
+
+# Review/handoff snapshots (should never be committed)
+.review-package-staging-*/
+
+# Local NuGet cache (not wired into restore; keep out of the repo)
+.nuget-packages/
+
+# Defense-in-depth: local user data / credentials. These are the exact
+# filenames the app writes to %LocalAppData%\FloatingTools, kept here so
+# a debug build run with a repo-relative working directory can never
+# accidentally commit them.
+settings.json
+notes.json
+notes-assets/
+quickchat.json
+quickchat-assets/
+saved-words.json
+frequent-words.json
+calendar.json
+*.dat
+
+# Editor/OS noise
+.vscode/
+*.DotSettings.user
+Thumbs.db
+
+# Claude Code project-local tooling config, not repo content
+.claude/

@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=System.Runtime">
+    <system:Double x:Key="FloatingToolsSizeIconButton">30</system:Double>
+    <system:Double x:Key="FloatingToolsSizeActionButtonHeight">28</system:Double>
+    <system:Double x:Key="FloatingToolsSizeMenuItemHeight">34</system:Double>
+    <system:Double x:Key="FloatingToolsSizeMenuItemMinWidth">92</system:Double>
+    <system:Double x:Key="FloatingToolsSizeInputHeight">30</system:Double>
+    <system:Double x:Key="FloatingToolsSizeScrollBarWidth">10</system:Double>
+    <system:Double x:Key="FloatingToolsSizeScrollThumbWidth">8</system:Double>
+    <system:Double x:Key="FloatingToolsSizeScrollThumbMinHeight">24</system:Double>
+
+    <Thickness x:Key="FloatingToolsSpacingNone">0</Thickness>
+    <Thickness x:Key="FloatingToolsStrokeThin">1</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingMenuSurface">4</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingMenuItem">12,0</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingActionButton">8,5</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingCompactActionButton">6,0</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingInput">9,5</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingBorderedInput">7,4</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingToolTip">7,4</Thickness>
+    <Thickness x:Key="FloatingToolsSpacingScrollContentGutter">0,0,12,0</Thickness>
+</ResourceDictionary>

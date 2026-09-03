@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FloatingTools.App", "src\FloatingTools.App\FloatingTools.App.csproj", "{C59F1581-888D-44FC-84B0-45342B9A3169}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FloatingTools.Tests", "tests\FloatingTools.Tests\FloatingTools.Tests.csproj", "{8ADCB021-96D0-449B-8A27-9362BFF1ED88}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C59F1581-888D-44FC-84B0-45342B9A3169}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C59F1581-888D-44FC-84B0-45342B9A3169}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C59F1581-888D-44FC-84B0-45342B9A3169}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C59F1581-888D-44FC-84B0-45342B9A3169}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8ADCB021-96D0-449B-8A27-9362BFF1ED88}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8ADCB021-96D0-449B-8A27-9362BFF1ED88}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8ADCB021-96D0-449B-8A27-9362BFF1ED88}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8ADCB021-96D0-449B-8A27-9362BFF1ED88}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

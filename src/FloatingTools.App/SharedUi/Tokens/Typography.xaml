@@ -1,0 +1,12 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=System.Runtime">
+    <FontFamily x:Key="FloatingToolsFontFamilyDefault">Segoe UI</FontFamily>
+    <system:Double x:Key="FloatingToolsFontSizeCaption">10</system:Double>
+    <system:Double x:Key="FloatingToolsFontSizeSmall">11</system:Double>
+    <system:Double x:Key="FloatingToolsFontSizeBodySmall">12</system:Double>
+    <system:Double x:Key="FloatingToolsFontSizeBody">13</system:Double>
+    <system:Double x:Key="FloatingToolsFontSizeBodyLarge">14</system:Double>
+    <FontWeight x:Key="FloatingToolsFontWeightRegular">Normal</FontWeight>
+    <FontWeight x:Key="FloatingToolsFontWeightSemibold">SemiBold</FontWeight>
+</ResourceDictionary>

@@ -1,0 +1,152 @@
+<UserControl x:Class="FloatingTools.App.Controls.LinkListBlockControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:FloatingTools.App.Controls"
+             Background="Transparent">
+    <UserControl.Resources>
+        <ResourceDictionary>
+        <Style TargetType="ToolTip"
+               BasedOn="{StaticResource FloatingToolsSharedToolTipStyle}" />
+        <Style TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="MinWidth" Value="92" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="LinkToolbarIconButton"
+               TargetType="Button"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Width" Value="27" />
+            <Setter Property="Height" Value="27" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface"
+                                Background="{DynamicResource FloatingToolsBrushTransparent}"
+                                CornerRadius="{StaticResource FloatingToolsRadiusControl}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="LinkToolbarTabButton" TargetType="Button" BasedOn="{StaticResource LinkToolbarIconButton}">
+            <Setter Property="Width" Value="Auto" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+        <Style x:Key="LinkEditInput" TargetType="TextBox">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="{StaticResource FloatingToolsSpacingBorderedInput}" />
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceInput}" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource FloatingToolsBrushSelection}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushBorderInput}" />
+            <Setter Property="BorderThickness" Value="{StaticResource FloatingToolsStrokeThin}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
+        <DataTemplate x:Key="LinkActionToolbarTemplate">
+            <Border PreviewKeyDown="PopupContent_OnPreviewKeyDown">
+                <StackPanel x:Name="ActionToolbar" Orientation="Horizontal" Margin="3">
+                    <Button Style="{StaticResource LinkToolbarIconButton}" ToolTip="Open" Click="Open_OnClick">
+                        <Path Data="M 4,12 L 12,4 M 7,4 L 12,4 L 12,9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Button>
+                    <Button Style="{StaticResource LinkToolbarIconButton}" ToolTip="Copy" Click="Copy_OnClick">
+                        <Grid><Path Data="M 5,5 L 12,5 L 12,12 L 5,12 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeThickness="1.1" /><Path Data="M 2,9 L 2,2 L 9,2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeThickness="1.1" /></Grid>
+                    </Button>
+                    <Button Style="{StaticResource LinkToolbarIconButton}" ToolTip="Edit" Click="Edit_OnClick">
+                        <Path Data="M 3,12 L 4,9 L 10,3 L 12,5 L 6,11 Z M 9,4 L 11,6" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeThickness="1.1" StrokeLineJoin="Round" />
+                    </Button>
+                    <Button Style="{StaticResource LinkToolbarIconButton}" ToolTip="Delete" Click="DeleteItem_OnClick">
+                        <Grid><Path Data="M 4,5 L 11,5 L 10.5,12 L 4.5,12 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeThickness="1.1" /><Path Data="M 3,5 L 12,5 M 5,3 L 10,3" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeThickness="1.1" /></Grid>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="LinkEditToolbarTemplate">
+            <Border PreviewKeyDown="PopupContent_OnPreviewKeyDown">
+                <StackPanel Width="170" Margin="5">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <Button x:Name="NameTab" Content="Name" Style="{StaticResource LinkToolbarTabButton}" Click="NameTab_OnClick" />
+                        <Button x:Name="UrlTab" Content="URL" Style="{StaticResource LinkToolbarTabButton}" Click="UrlTab_OnClick" />
+                    </StackPanel>
+                    <controls:NoteDirectionalTextBox x:Name="EditInput"
+                                                     Style="{StaticResource LinkEditInput}"
+                                                     PreviewKeyDown="EditInput_OnPreviewKeyDown" />
+                    <TextBlock x:Name="EditError"
+                               Text="Enter a valid HTTP/HTTPS URL."
+                               Foreground="{DynamicResource FloatingToolsBrushStatusError}"
+                               FontSize="10"
+                               Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root" Margin="0" Background="Transparent">
+        <Grid.ContextMenu>
+            <ContextMenu x:Name="BlockContextMenu" Opened="BlockContextMenu_OnOpened">
+                <MenuItem Header="Copy block" Click="CopyBlock_OnClick" />
+                <MenuItem Header="Cut block" Click="CutBlock_OnClick" />
+                <MenuItem Header="Delete block" Click="DeleteBlock_OnClick" />
+            </ContextMenu>
+        </Grid.ContextMenu>
+        <Grid x:Name="LinkItemsLayout" Margin="16,5" VerticalAlignment="Top">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <ItemsControl x:Name="LinkItemsHost" Grid.Row="0"
+                          HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding Items}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding VisibleName}"
+                                   MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                   Margin="0,2"
+                                   HorizontalAlignment="Left"
+                                   Foreground="#FF0563C1"
+                                   TextDecorations="Underline"
+                                   TextWrapping="Wrap"
+                                   Cursor="Hand"
+                                   Focusable="True"
+                                   MouseLeftButtonDown="LinkItem_OnMouseLeftButtonDown"
+                                   PreviewMouseRightButtonDown="LinkItem_OnPreviewMouseRightButtonDown"
+                                   PreviewKeyDown="LinkItem_OnPreviewKeyDown" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBox x:Name="DraftToken" Grid.Row="1"
+                     MinWidth="24" MaxWidth="240" Height="24"
+                     Margin="0,0,4,0" Padding="0,2"
+                     Background="White" Foreground="#FF202124" CaretBrush="#FF202124"
+                     FlowDirection="LeftToRight" TextAlignment="Left" HorizontalAlignment="Left"
+                     BorderThickness="0" FocusVisualStyle="{x:Null}"
+                     TextChanged="DraftToken_OnTextChanged"
+                     PreviewKeyDown="DraftToken_OnPreviewKeyDown" />
+        </Grid>
+        <TextBlock x:Name="DraftError" Margin="16,30,16,0" Foreground="{DynamicResource FloatingToolsBrushStatusError}"
+                   FontSize="11" Visibility="Collapsed" Text="Only HTTP/HTTPS links are supported." />
+
+    </Grid>
+</UserControl>

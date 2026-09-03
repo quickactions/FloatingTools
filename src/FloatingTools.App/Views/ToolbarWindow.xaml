@@ -1,0 +1,292 @@
+<Window x:Class="FloatingTools.App.Views.ToolbarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:FloatingTools.App.Models"
+        Title="FloatingTools"
+        Width="80"
+        Height="48"
+        SizeToContent="Manual"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="True"
+        SnapsToDevicePixels="True">
+    <Window.InputBindings>
+        <KeyBinding Key="D1"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.Translation}" />
+        <KeyBinding Key="D2"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.Notes}" />
+        <KeyBinding Key="D3"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.QuickChat}" />
+        <KeyBinding Key="D4"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.Calendar}" />
+    </Window.InputBindings>
+    <Window.Resources>
+        <Style TargetType="{x:Type ToolTip}"
+               BasedOn="{StaticResource FloatingToolsSharedToolTipStyle}" />
+
+        <Style TargetType="{x:Type ContextMenu}"
+               BasedOn="{StaticResource FloatingToolsSharedContextMenuStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ContextMenu}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource FloatingToolsRadiusMenu}"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="8"
+                                                  Color="#FF000000"
+                                                  Direction="270"
+                                                  Opacity="0.2"
+                                                  ShadowDepth="2" />
+                            </Border.Effect>
+                            <StackPanel IsItemsHost="True"
+                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type MenuItem}"
+               BasedOn="{StaticResource FloatingToolsSharedMenuItemStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource FloatingToolsRadiusControl}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceHover}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseCaptureWithin" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfacePressed}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceSubtleHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ContextMenu x:Key="ToolbarContextMenu" x:Shared="False">
+            <MenuItem Header="Settings" Click="SettingsMenuItem_OnClick" />
+            <MenuItem Header="Exit" Click="ExitMenuItem_OnClick" />
+        </ContextMenu>
+
+        <Style x:Key="ToolbarButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceElevated}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TranslateTransform />
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceSubtleHover}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfacePressed}" />
+                                <Setter TargetName="ButtonBorder"
+                                        Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="1" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceFocus}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="OverflowButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TranslateTransform />
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushOverlayHover}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushOverlayPressed}" />
+                                <Setter TargetName="ButtonBorder"
+                                        Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="1" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushOverlayHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="ShellRoot"
+          Width="80"
+          Height="48"
+          UseLayoutRounding="True">
+        <Grid.Effect>
+            <DropShadowEffect BlurRadius="8"
+                              Color="#FF000000"
+                              Direction="270"
+                              Opacity="0.13"
+                              ShadowDepth="1" />
+        </Grid.Effect>
+
+        <Grid x:Name="ToolbarBlock" Width="80" Height="48">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="MainTileButton"
+                    Grid.Column="1"
+                    Width="48"
+                    Height="48"
+                    HorizontalAlignment="Left"
+                    ContextMenu="{StaticResource ToolbarContextMenu}"
+                    ToolTip="{Binding LastUsedToolName}"
+                    Click="MainTileButton_OnClick"
+                    PreviewMouseLeftButtonDown="MainTileButton_OnPreviewMouseLeftButtonDown"
+                    PreviewMouseMove="MainTileButton_OnPreviewMouseMove"
+                    PreviewMouseLeftButtonUp="MainTileButton_OnPreviewMouseLeftButtonUp"
+                    LostMouseCapture="MainTileButton_OnLostMouseCapture"
+                    AutomationProperties.Name="Last used tool">
+                <Button.Style>
+                    <Style TargetType="{x:Type Button}"
+                           BasedOn="{StaticResource ToolbarButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PanelState}"
+                                         Value="{x:Static models:PanelState.ActiveTool}">
+                                <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceSelected}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <ContentControl>
+                    <ContentControl.Style>
+                        <Style TargetType="{x:Type ContentControl}">
+                            <Setter Property="ContentTemplate"
+                                    Value="{StaticResource TranslationIconTemplate}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LastUsedTool}"
+                                             Value="{x:Static models:ToolId.Notes}">
+                                    <Setter Property="ContentTemplate"
+                                            Value="{StaticResource NotesIconTemplate}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding LastUsedTool}"
+                                             Value="{x:Static models:ToolId.QuickChat}">
+                                    <Setter Property="ContentTemplate"
+                                            Value="{StaticResource QuickChatIconTemplate}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding LastUsedTool}"
+                                             Value="{x:Static models:ToolId.Calendar}">
+                                    <Setter Property="ContentTemplate"
+                                            Value="{StaticResource CalendarIconTemplate}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentControl.Style>
+                </ContentControl>
+            </Button>
+
+            <Button x:Name="ToolsMenuButton"
+                    Grid.Column="0"
+                    Width="32"
+                    Height="48"
+                    HorizontalAlignment="Left"
+                    ContextMenu="{StaticResource ToolbarContextMenu}"
+                    ToolTip="All tools"
+                    Click="ToolsMenuButton_OnClick"
+                    AutomationProperties.Name="Tools menu">
+                <Button.Style>
+                    <Style TargetType="{x:Type Button}"
+                           BasedOn="{StaticResource OverflowButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PanelState}"
+                                         Value="{x:Static models:PanelState.ToolMenu}">
+                                <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushOverlayHover}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <TextBlock Text="&#x22EE;"
+                           FontFamily="Segoe UI Symbol"
+                           FontSize="22"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            </Button>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,376 @@
+<Window x:Class="FloatingTools.App.Views.PanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:FloatingTools.App.Models"
+        xmlns:views="clr-namespace:FloatingTools.App.Views"
+        Title="FloatingTools panel"
+        SizeToContent="Manual"
+        WindowStartupLocation="Manual"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="True"
+        SnapsToDevicePixels="True">
+    <Window.InputBindings>
+        <KeyBinding Key="D1"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.Translation}" />
+        <KeyBinding Key="D2"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.Notes}" />
+        <KeyBinding Key="D3"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.QuickChat}" />
+        <KeyBinding Key="D4"
+                    Modifiers="Control"
+                    Command="{Binding SelectToolCommand}"
+                    CommandParameter="{x:Static models:ToolId.Calendar}" />
+    </Window.InputBindings>
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.Find"
+                         CanExecute="FindCommand_OnCanExecute"
+                         Executed="FindCommand_OnExecuted" />
+    </Window.CommandBindings>
+    <Window.Resources>
+        <Style TargetType="{x:Type ToolTip}"
+               BasedOn="{StaticResource FloatingToolsSharedToolTipStyle}" />
+
+        <Style x:Key="PanelSizeMenuItemStyle"
+               TargetType="{x:Type MenuItem}"
+               BasedOn="{StaticResource FloatingToolsSharedMenuItemStyle}">
+            <Setter Property="MinWidth" Value="126" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource FloatingToolsRadiusControl}"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="CheckMark"
+                                           Text="&#x2713;"
+                                           Visibility="Collapsed"
+                                           VerticalAlignment="Center" />
+                                <ContentPresenter Grid.Column="1"
+                                                  ContentSource="Header"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark"
+                                        Property="Visibility"
+                                        Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.Effect>
+            <DropShadowEffect BlurRadius="8"
+                              Color="#FF000000"
+                              Direction="270"
+                              Opacity="0.13"
+                              ShadowDepth="1" />
+        </Grid.Effect>
+        <Border x:Name="ToolMenuPanel"
+                Background="{DynamicResource FloatingToolsBrushSurfaceInput}">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding PanelState}"
+                                     Value="{x:Static models:PanelState.ToolMenu}">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="42" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border x:Name="ToolMenuHeader"
+                        Grid.Row="0"
+                        Padding="14,0,8,0"
+                        Background="{DynamicResource FloatingToolsBrushSurfaceHeader}"
+                        BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
+                        BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="34" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="All tools"
+                                   FontFamily="{StaticResource FloatingToolsFontFamilyDefault}"
+                                   FontSize="15"
+                                   FontWeight="{StaticResource FloatingToolsFontWeightSemibold}"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                   VerticalAlignment="Center" />
+
+                        <Button Grid.Column="1"
+                                Width="32"
+                                Height="32"
+                                Style="{StaticResource FloatingToolsSharedChromeButtonStyle}"
+                                Click="CloseButton_OnClick"
+                                ToolTip="Close"
+                                AutomationProperties.Name="Close tools menu">
+                            <TextBlock Text="&#x00D7;"
+                                       FontSize="17"
+                                       Margin="0,-2,0,0" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <UniformGrid Grid.Row="1"
+                             Columns="4"
+                             HorizontalAlignment="Stretch"
+                             VerticalAlignment="Top"
+                             Margin="14">
+                    <Button Width="44"
+                            Height="44"
+                            Margin="2"
+                            Style="{StaticResource FloatingToolsSharedToolTileButtonStyle}"
+                            Command="{Binding SelectToolCommand}"
+                            CommandParameter="{x:Static models:ToolId.Translation}"
+                            ToolTip="Translation"
+                            AutomationProperties.Name="Translation">
+                        <ContentControl ContentTemplate="{StaticResource TranslationIconTemplate}" />
+                    </Button>
+                    <Button Width="44"
+                            Height="44"
+                            Margin="2"
+                            Style="{StaticResource FloatingToolsSharedToolTileButtonStyle}"
+                            Command="{Binding SelectToolCommand}"
+                            CommandParameter="{x:Static models:ToolId.Notes}"
+                            ToolTip="Notes"
+                            AutomationProperties.Name="Notes">
+                        <ContentControl ContentTemplate="{StaticResource NotesIconTemplate}" />
+                    </Button>
+                    <Button Width="44"
+                            Height="44"
+                            Margin="2"
+                            Style="{StaticResource FloatingToolsSharedToolTileButtonStyle}"
+                            Command="{Binding SelectToolCommand}"
+                            CommandParameter="{x:Static models:ToolId.QuickChat}"
+                            ToolTip="Quick Chat"
+                            AutomationProperties.Name="Quick Chat">
+                        <ContentControl ContentTemplate="{StaticResource QuickChatIconTemplate}" />
+                    </Button>
+                    <Button Width="44"
+                            Height="44"
+                            Margin="2"
+                            Style="{StaticResource FloatingToolsSharedToolTileButtonStyle}"
+                            Command="{Binding SelectToolCommand}"
+                            CommandParameter="{x:Static models:ToolId.Calendar}"
+                            ToolTip="Calendar"
+                            AutomationProperties.Name="Calendar">
+                        <ContentControl ContentTemplate="{StaticResource CalendarIconTemplate}" />
+                    </Button>
+                </UniformGrid>
+            </Grid>
+        </Border>
+
+        <Border x:Name="ActiveToolPanel"
+                Background="{DynamicResource FloatingToolsBrushSurfaceInput}">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding PanelState}"
+                                     Value="{x:Static models:PanelState.ActiveTool}">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding PanelState}"
+                                     Value="{x:Static models:PanelState.ApplicationSettings}">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="42" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border x:Name="ActiveToolHeader"
+                        Grid.Row="0"
+                        Padding="14,0,8,0"
+                        Background="{DynamicResource FloatingToolsBrushSurfaceHeader}"
+                        BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
+                        BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="34" />
+                            <ColumnDefinition Width="34" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{Binding ActivePanelTitle}"
+                                   FontFamily="{StaticResource FloatingToolsFontFamilyDefault}"
+                                   FontSize="15"
+                                   FontWeight="{StaticResource FloatingToolsFontWeightSemibold}"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"
+                                   ToolTip="{Binding ActivePanelTitle}" />
+
+                        <Button Grid.Column="1"
+                                Width="32"
+                                Height="32"
+                                Style="{StaticResource FloatingToolsSharedChromeButtonStyle}"
+                                Click="PanelSizeButton_OnClick"
+                                ToolTip="Panel size"
+                                AutomationProperties.Name="Panel size">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource FloatingToolsSharedContextMenuStyle}"
+                                             Opened="PanelSizeContextMenu_OnOpened">
+                                    <MenuItem Header="Standard"
+                                              Tag="{x:Static models:PanelSizePreset.Standard}"
+                                              IsCheckable="True"
+                                              Style="{StaticResource PanelSizeMenuItemStyle}"
+                                              Click="PanelSizeMenuItem_OnClick" />
+                                    <MenuItem Header="Large"
+                                              Tag="{x:Static models:PanelSizePreset.Large}"
+                                              IsCheckable="True"
+                                              Style="{StaticResource PanelSizeMenuItemStyle}"
+                                              Click="PanelSizeMenuItem_OnClick" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <TextBlock Text="&#x25A3;"
+                                       FontSize="14" />
+                        </Button>
+
+                        <Button Grid.Column="2"
+                                Width="32"
+                                Height="32"
+                                Style="{StaticResource FloatingToolsSharedChromeButtonStyle}"
+                                Click="CloseButton_OnClick"
+                                ToolTip="Close"
+                                AutomationProperties.Name="Close active tool">
+                            <TextBlock Text="&#x00D7;"
+                                       FontSize="17"
+                                       Margin="0,-2,0,0" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <Grid x:Name="ActiveToolContent"
+                      Grid.Row="1"
+                      SizeChanged="ActiveToolContent_OnSizeChanged">
+                    <views:TranslationToolView x:Name="TranslationTool">
+                        <views:TranslationToolView.Style>
+                            <Style TargetType="{x:Type views:TranslationToolView}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding DataContext.PanelState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:PanelState.ActiveTool}" />
+                                            <Condition Binding="{Binding DataContext.ActiveTool, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:ToolId.Translation}" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:TranslationToolView.Style>
+                    </views:TranslationToolView>
+                    <views:NotesToolView x:Name="NotesTool">
+                        <views:NotesToolView.Style>
+                            <Style TargetType="{x:Type views:NotesToolView}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding DataContext.PanelState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:PanelState.ActiveTool}" />
+                                            <Condition Binding="{Binding DataContext.ActiveTool, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:ToolId.Notes}" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:NotesToolView.Style>
+                    </views:NotesToolView>
+                    <views:QuickChatToolView x:Name="QuickChatTool">
+                        <views:QuickChatToolView.Style>
+                            <Style TargetType="{x:Type views:QuickChatToolView}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding DataContext.PanelState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:PanelState.ActiveTool}" />
+                                            <Condition Binding="{Binding DataContext.ActiveTool, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:ToolId.QuickChat}" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:QuickChatToolView.Style>
+                    </views:QuickChatToolView>
+                    <views:CalendarToolView x:Name="CalendarTool">
+                        <views:CalendarToolView.Style>
+                            <Style TargetType="{x:Type views:CalendarToolView}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding DataContext.PanelState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:PanelState.ActiveTool}" />
+                                            <Condition Binding="{Binding DataContext.ActiveTool, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                       Value="{x:Static models:ToolId.Calendar}" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:CalendarToolView.Style>
+                    </views:CalendarToolView>
+                    <views:ApplicationSettingsView x:Name="ApplicationSettings">
+                        <views:ApplicationSettingsView.Style>
+                            <Style TargetType="{x:Type views:ApplicationSettingsView}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.PanelState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                 Value="{x:Static models:PanelState.ApplicationSettings}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:ApplicationSettingsView.Style>
+                    </views:ApplicationSettingsView>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

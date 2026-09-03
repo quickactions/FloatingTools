@@ -1,0 +1,39 @@
+<Application x:Class="FloatingTools.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Permanent fallback baseline: guarantees every
+                     StaticResource reference to a FloatingTools color/brush
+                     token resolves even before ThemeService runs, and even for
+                     views/templates instantiated after the app has switched to
+                     Light (StaticResource references not yet migrated to
+                     DynamicResource stay dark rather than crash — expected
+                     until C2/C3 migrate them). WPF's optimized template loader
+                     does not reliably resolve StaticResource against a
+                     dictionary added to Application.Resources.MergedDictionaries
+                     purely via code after InitializeComponent(), so this one
+                     must stay declared here. ThemeService (App.xaml.cs) appends
+                     its own managed Colors.Dark/Light.xaml dictionary after
+                     this one at startup, which — being last in merge order —
+                     is what DynamicResource-bound and newly-instantiated
+                     StaticResource content actually pick up. -->
+                <ResourceDictionary Source="SharedUi/Tokens/Colors.Dark.xaml" />
+                <ResourceDictionary Source="SharedUi/Tokens/Typography.xaml" />
+                <ResourceDictionary Source="SharedUi/Tokens/Spacing.xaml" />
+                <ResourceDictionary Source="SharedUi/Tokens/Radii.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/Buttons.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/ContextMenus.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/ScrollBars.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/SettingsPageShell.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/SettingsComboBoxes.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/TextBoxes.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/ToolHeader.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/Tooltips.xaml" />
+                <ResourceDictionary Source="Resources/SharedWindowStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,1354 @@
+    <UserControl x:Class="FloatingTools.App.Views.TranslationToolView"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:controls="clr-namespace:FloatingTools.App.Controls"
+                 xmlns:sharedControls="clr-namespace:FloatingTools.App.SharedUi.Controls"
+                 xmlns:converters="clr-namespace:FloatingTools.App.Converters"
+             Background="Transparent">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <Style TargetType="{x:Type ToolTip}"
+               BasedOn="{StaticResource FloatingToolsSharedToolTipStyle}" />
+
+        <Style x:Key="DockAwareFeedScrollViewerStyle"
+                TargetType="{x:Type ScrollViewer}"
+                BasedOn="{StaticResource FloatingToolsSharedScrollViewerStyle}">
+            <Setter Property="controls:SmoothWheelScrollBehavior.IsEnabled" Value="True" />
+        </Style>
+
+        <Style x:Key="IconButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Width" Value="{StaticResource FloatingToolsSizeIconButton}" />
+            <Setter Property="Height" Value="{StaticResource FloatingToolsSizeIconButton}" />
+            <Setter Property="Padding" Value="{StaticResource FloatingToolsSpacingNone}" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ButtonBorder"
+                                 Background="{TemplateBinding Background}"
+                                 CornerRadius="{StaticResource FloatingToolsRadiusControl}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceHover}" />
+                                <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfacePressed}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ActionButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Height" Value="{StaticResource FloatingToolsSizeActionButtonHeight}" />
+            <Setter Property="Padding" Value="{StaticResource FloatingToolsSpacingCompactActionButton}" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+            <Setter Property="FontSize" Value="{StaticResource FloatingToolsFontSizeBodySmall}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ActionBorder"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource FloatingToolsRadiusSmall}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ActionBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceControl}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SelectableEntryTextStyle" TargetType="{x:Type TextBox}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="IsReadOnlyCaretVisible" Value="False" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="Cursor" Value="IBeam" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="sharedControls:TripleClickSelectAllBehavior.IsEnabled" Value="True" />
+        </Style>
+
+        <Style x:Key="MenuItemButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Height" Value="{StaticResource FloatingToolsSizeMenuItemHeight}" />
+            <Setter Property="Margin" Value="10,0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BarButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceHeader}" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushBorderDivider}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="BarBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BarBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceHover}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="BarBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfacePressed}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.42" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TranslationToolHeaderStyle"
+               TargetType="{x:Type sharedControls:ToolHeaderControl}"
+               BasedOn="{StaticResource FloatingToolsSharedToolHeaderStyle}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceHeader}" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="ChevronBrush" Value="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceHover}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfacePressed}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.42" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SettingsPasswordBoxStyle"
+               TargetType="{x:Type PasswordBox}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceInput}" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushBorderInput}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type PasswordBox}">
+                        <Border x:Name="PasswordBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="PasswordBorder"
+                                        Property="BorderBrush"
+                                        Value="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SettingsCheckBoxStyle"
+               TargetType="{x:Type CheckBox}">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,3,0,4" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource FloatingToolsBrushSurfaceBase}" FlowDirection="LeftToRight">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="34" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="34" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <sharedControls:ToolHeaderControl Grid.Row="0"
+                                          Style="{StaticResource TranslationToolHeaderStyle}"
+                                          Title="Translation Assistant"
+                                          IsMenuOpen="{Binding IsAppMenuOpen}"
+                                          ExpandedContentRoot="{Binding ElementName=TranslationHeaderExpandedContent}"
+                                          Command="{Binding ToggleAppMenuCommand}"
+                                          ToolTip="Open application menu"
+                                          AutomationProperties.Name="Toggle translation menu" />
+
+        <Border x:Name="TranslationHeaderExpandedContent"
+                Grid.Row="1"
+                Background="{DynamicResource FloatingToolsBrushSurfaceHeader}"
+                BorderThickness="0"
+                VerticalAlignment="Top"
+                Panel.ZIndex="100"
+                Visibility="{Binding IsAppMenuOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel Margin="0,5">
+                <Button Style="{StaticResource MenuItemButtonStyle}"
+                        Command="{Binding OpenFeedCommand}"
+                        ToolTip="Open translation feed">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="14"
+                              Height="14"
+                              Margin="0,0,9,0"
+                              Data="M 2,2 L 12,2 L 12,10 L 7,10 L 4,12 L 4,10 L 2,10 Z"
+                              Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                              StrokeThickness="1.1"
+                              StrokeLineJoin="Round" />
+                        <TextBlock Text="Translation" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource MenuItemButtonStyle}"
+                        Command="{Binding OpenSavedWordsCommand}"
+                        ToolTip="Open saved words">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="13"
+                              Height="15"
+                              Margin="0,0,10,0"
+                              Data="M 2,1.5 L 11,1.5 L 11,13 L 6.5,10 L 2,13 Z"
+                              Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                              StrokeThickness="1.1" />
+                        <TextBlock Text="Saved words" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource MenuItemButtonStyle}"
+                        Command="{Binding OpenFrequentWordsCommand}"
+                        ToolTip="Open frequent words">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="15"
+                              Height="13"
+                              Margin="0,0,8,0"
+                              Data="M 1,11 L 5,7 L 8,9 L 14,2 M 10,2 L 14,2 L 14,6"
+                              Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                              StrokeThickness="1.1"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round" />
+                        <TextBlock Text="Frequent words" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource MenuItemButtonStyle}"
+                        Command="{Binding OpenSettingsCommand}"
+                        ToolTip="Open settings">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="15"
+                              Height="15"
+                              Margin="0,0,8,0"
+                              Data="M 7.5,1.5 A 2,2 0 0 1 9.4,3 L 11.4,2.8 L 12.4,4.6 L 11.1,6.1 A 4,4 0 0 1 11.1,8.9 L 12.4,10.4 L 11.4,12.2 L 9.4,12 A 2,2 0 0 1 5.6,12 L 3.6,12.2 L 2.6,10.4 L 3.9,8.9 A 4,4 0 0 1 3.9,6.1 L 2.6,4.6 L 3.6,2.8 L 5.6,3 A 2,2 0 0 1 7.5,1.5 M 7.5,5.4 A 2.1,2.1 0 1 0 7.5,9.6 A 2.1,2.1 0 1 0 7.5,5.4"
+                              Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                              StrokeThickness="1"
+                              Fill="Transparent" />
+                        <TextBlock Text="Settings" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <ScrollViewer x:Name="FeedScrollViewer"
+                          Style="{StaticResource DockAwareFeedScrollViewerStyle}"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}">
+                <ItemsControl Margin="12,5,0,4"
+                              ItemsSource="{Binding Items}"
+                              HorizontalContentAlignment="Stretch">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="3,11,1,11"
+                                    sharedControls:BringIntoViewOnRevealBehavior.RevealVersion="{Binding RevealRequestVersion}">
+                                <Grid FlowDirection="LeftToRight">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="30" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBox Grid.Row="0"
+                                             Grid.Column="0"
+                                             Margin="0,0,7,0"
+                                             Style="{StaticResource SelectableEntryTextStyle}"
+                                             Text="{Binding SourceText, Mode=OneWay}"
+                                             FlowDirection="{Binding SourceFlowDirection}"
+                                             TextAlignment="{Binding SourceTextAlignment}"
+                                             Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                             AutomationProperties.Name="Source text" />
+
+                                    <TextBox Grid.Row="1"
+                                             Grid.Column="0"
+                                             Margin="0,4,7,0"
+                                             Style="{StaticResource SelectableEntryTextStyle}"
+                                             Text="{Binding CorrectedSourceDisplayText, Mode=OneWay}"
+                                             Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                             FontSize="12"
+                                             FlowDirection="LeftToRight"
+                                             TextAlignment="Left"
+                                             Visibility="{Binding HasCorrection, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                             AutomationProperties.Name="Corrected source text" />
+
+                                    <TextBox Grid.Row="2"
+                                             Grid.Column="0"
+                                             Margin="0,5,7,0"
+                                             Style="{StaticResource SelectableEntryTextStyle}"
+                                             Text="{Binding MainTranslation, Mode=OneWay}"
+                                             FlowDirection="{Binding ResultFlowDirection}"
+                                             TextAlignment="{Binding ResultTextAlignment}"
+                                             Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                             FontWeight="Medium"
+                                             Visibility="{Binding HasTranslation, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                             AutomationProperties.Name="Translation text" />
+
+                                    <TextBox Grid.Row="2"
+                                             Grid.Column="0"
+                                             Margin="0,5,7,0"
+                                             Style="{StaticResource SelectableEntryTextStyle}"
+                                             Text="{Binding AmbiguousMessage, Mode=OneWay}"
+                                             Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                             FontSize="12"
+                                             FlowDirection="LeftToRight"
+                                             TextAlignment="Left"
+                                             Visibility="{Binding IsAmbiguous, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                             AutomationProperties.Name="Ambiguous source message" />
+
+                                    <StackPanel Grid.Row="3" Grid.Column="0">
+                                        <ItemsControl ItemsSource="{Binding Alternatives}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Margin="0,4,7,0"
+                                                             Style="{StaticResource SelectableEntryTextStyle}"
+                                                             Text="{Binding Text, Mode=OneWay}"
+                                                             FlowDirection="{Binding FlowDirection}"
+                                                             TextAlignment="{Binding TextAlignment}"
+                                                             Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                                             FontSize="12.5"
+                                                             AutomationProperties.Name="Alternative translation text" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Margin="0,4,7,0"
+                                                   Text="{Binding AlternativeMessage}"
+                                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="{Binding HasAlternativeMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                   AutomationProperties.Name="Alternative translation status" />
+                                    </StackPanel>
+
+                                    <Button Grid.Row="0"
+                                            Grid.Column="1"
+                                            Grid.RowSpan="3"
+                                            VerticalAlignment="Top"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Command="{Binding ToggleActionsCommand}"
+                                            ToolTip="Entry actions"
+                                            AutomationProperties.Name="Toggle translation actions">
+                                        <Grid Width="8" Height="12">
+                                            <Path Data="M 1,1 L 6,6 L 1,11"
+                                                  Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                                  StrokeThickness="1.2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round">
+                                                <Path.Style>
+                                                    <Style TargetType="{x:Type Path}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Path.Style>
+                                            </Path>
+                                            <Path Data="M 1,3 L 4,7 L 7,3"
+                                                  Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                                  StrokeThickness="1.2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round">
+                                                <Path.Style>
+                                                    <Style TargetType="{x:Type Path}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Path.Style>
+                                            </Path>
+                                        </Grid>
+                                    </Button>
+
+                                    <StackPanel Grid.Row="4"
+                                                Grid.Column="0"
+                                                Grid.ColumnSpan="2"
+                                                Margin="0,10,0,0"
+                                                Orientation="Horizontal"
+                                                Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Button Style="{StaticResource ActionButtonStyle}"
+                                                Command="{Binding CopyCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Grid Width="14" Height="14" Margin="0,0,6,0">
+                                                    <Path Data="M 5,5 L 12,5 L 12,12 L 5,12 Z"
+                                                          Stroke="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                                          StrokeThickness="1.1" />
+                                                    <Path Data="M 2,9 L 2,2 L 9,2"
+                                                          Stroke="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                                          StrokeThickness="1.1" />
+                                                </Grid>
+                                                <TextBlock Text="Copy" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource ActionButtonStyle}"
+                                                Command="{Binding ToggleFavoriteCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Width="14"
+                                                      Height="14"
+                                                      Margin="0,0,6,0"
+                                                      Data="M 8,1.2 L 10.05,5.35 L 14.6,6.02 L 11.3,9.25 L 12.08,13.8 L 8,11.65 L 3.92,13.8 L 4.7,9.25 L 1.4,6.02 L 5.95,5.35 Z"
+                                                      Stroke="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                                      StrokeThickness="1.1">
+                                                    <Path.Style>
+                                                        <Style TargetType="{x:Type Path}">
+                                                            <Setter Property="Fill" Value="Transparent" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                                                                    <Setter Property="Fill" Value="{DynamicResource FloatingToolsBrushAccentFavorite}" />
+                                                                    <Setter Property="Stroke" Value="{DynamicResource FloatingToolsBrushAccentFavorite}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Path.Style>
+                                                </Path>
+                                                <TextBlock Text="Save" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource ActionButtonStyle}"
+                                                Command="{Binding RequestAlternativeCommand}"
+                                                ToolTip="{Binding AlternativeActionToolTip}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Width="15"
+                                                      Height="14"
+                                                      Margin="0,0,5,0"
+                                                      Data="M 1,4 L 12,4 M 9,1 L 12,4 L 9,7 M 14,10 L 3,10 M 6,7 L 3,10 L 6,13"
+                                                      Stroke="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                                      StrokeThickness="1.1"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round" />
+                                                <TextBlock Text="{Binding AlternativeActionLabel}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock Text="Start typing below"
+                       Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                       FontSize="13"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Items.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+
+        <Button Grid.Row="2"
+                Height="34"
+                Style="{StaticResource BarButtonStyle}"
+                HorizontalContentAlignment="Left"
+                Padding="13,0"
+                BorderThickness="0,0,0,1"
+                Command="{Binding ClearHistoryCommand}"
+                ToolTip="Remove all translations from the feed"
+                AutomationProperties.Name="Clear translation history">
+            <StackPanel Orientation="Horizontal">
+                <Grid Width="13" Height="14" Margin="0,0,8,0">
+                    <Path Data="M 3,4 L 10,4 L 9.4,12 L 3.6,12 Z"
+                          Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                          StrokeThickness="1.1" />
+                    <Path Data="M 2,4 L 11,4 M 4.5,2 L 8.5,2 L 9.5,4"
+                          Stroke="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                          StrokeThickness="1.1" />
+                </Grid>
+                <TextBlock Text="Clear history"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </Button>
+
+        <Grid Grid.Row="3" Margin="10,8,10,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="{DynamicResource FloatingToolsBrushSurfaceInput}"
+                    BorderBrush="{DynamicResource FloatingToolsBrushBorderInput}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    SnapsToDevicePixels="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <controls:DirectionalTextBox x:Name="ComposerTextBox"
+                                                     MinHeight="40"
+                                                     MaxHeight="144"
+                                                     MinLines="1"
+                                                     MaxLines="7"
+                                                     Padding="11,8,11,4"
+                                                     Background="Transparent"
+                                                     Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                                     CaretBrush="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                                     BorderThickness="0"
+                                                     FontFamily="Segoe UI"
+                                                     FontSize="14"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="Wrap"
+                                                     VerticalContentAlignment="Top"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     HorizontalScrollBarVisibility="Disabled"
+                                                     Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     PreviewKeyDown="ComposerTextBox_OnPreviewKeyDown"
+                                                     AutomationProperties.Name="Translation input" />
+
+                        <TextBlock Margin="12,0,4,0"
+                                   Text="Type in Hebrew or English"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                   FontSize="14"
+                                   FlowDirection="LeftToRight"
+                                   TextAlignment="Left"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding InputText}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="6,0,5,5">
+                        <Button Margin="0,0,2,0"
+                                Style="{StaticResource IconButtonStyle}"
+                                Command="{Binding CaptureTextCommand}"
+                                ToolTip="Capture Text"
+                                AutomationProperties.Name="Capture English text from screen">
+                            <Grid Width="14" Height="14">
+                                <Path Data="M 2,5 L 2,2 L 5,2 M 9,2 L 12,2 L 12,5 M 12,9 L 12,12 L 9,12 M 5,12 L 2,12 L 2,9"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                      StrokeThickness="1.2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <Path Data="M 4,7 L 10,7"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                      StrokeThickness="1.2"
+                                      StrokeStartLineCap="Round" />
+                            </Grid>
+                        </Button>
+
+                        <Button Margin="0,0,2,0"
+                                Command="{Binding ClearInputCommand}"
+                                ToolTip="Clear input"
+                                AutomationProperties.Name="Clear input">
+                            <Button.Style>
+                                <Style TargetType="{x:Type Button}"
+                                       BasedOn="{StaticResource IconButtonStyle}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding InputText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <Path Width="10"
+                                  Height="10"
+                                  Data="M 1,1 L 9,9 M 9,1 L 1,9"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                  StrokeThickness="1.2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                        </Button>
+
+                        <Button Style="{StaticResource IconButtonStyle}"
+                                Command="{Binding SendCommand}"
+                                ToolTip="Send (Enter)"
+                                AutomationProperties.Name="Send for translation">
+                            <Path Width="14"
+                                  Height="14"
+                                  Data="M 2,7 L 12,7 M 7.5,2.5 L 12,7 L 7.5,11.5"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                  StrokeThickness="1.4"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="1" Margin="8,4,8,0">
+                <ProgressBar Height="2"
+                             IsIndeterminate="True"
+                             Visibility="{Binding IsTranslating, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBlock Text="{Binding ErrorMessage}"
+                           Foreground="{DynamicResource FloatingToolsBrushStatusError}"
+                           FontSize="12"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ErrorMessage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ErrorMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="{Binding InputValidationMessage}"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                           FontSize="12"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InputValidationMessage}"
+                                             Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding InputValidationMessage}"
+                                             Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="{Binding CaptureMessage}"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                           FontSize="12"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CaptureMessage}"
+                                             Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CaptureMessage}"
+                                             Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1"
+              Grid.RowSpan="3"
+              Background="{DynamicResource FloatingToolsBrushSurfaceBase}"
+              Panel.ZIndex="30">
+            <Grid.Style>
+                <Style TargetType="{x:Type Grid}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSavedWordsPage}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="42" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="36" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="8,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="34" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Width="30"
+                        Height="30"
+                        Style="{StaticResource IconButtonStyle}"
+                        Command="{Binding BackToFeedCommand}"
+                        ToolTip="Back to translations"
+                        AutomationProperties.Name="Back to translation feed">
+                    <Path Width="12"
+                          Height="12"
+                          Data="M 10,1 L 3,6 L 10,11"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                          StrokeThickness="1.3"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round" />
+                </Button>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding SavedWords.CountDisplay}"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="10,3,10,5">
+                <Border Background="{DynamicResource FloatingToolsBrushSurfaceInput}"
+                        BorderBrush="{DynamicResource FloatingToolsBrushBorderInput}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <controls:DirectionalTextBox x:Name="SavedWordsSearchTextBox"
+                             Padding="9,5"
+                             Background="Transparent"
+                             Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                             CaretBrush="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                             BorderThickness="0"
+                             FontSize="13"
+                             Text="{Binding SavedWords.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="Search saved words" />
+                </Border>
+                <TextBlock Margin="10,0,0,0"
+                           Text="Search..."
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                           FontSize="13"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SavedWords.SearchQuery}" Value="">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <Grid Grid.Row="2">
+                <ScrollViewer Style="{StaticResource DockAwareFeedScrollViewerStyle}"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}">
+                    <ItemsControl Margin="12,2,0,4"
+                                  ItemsSource="{Binding SavedWords.Items}"
+                                  HorizontalContentAlignment="Stretch">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="3,9,1,8">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBox Style="{StaticResource SelectableEntryTextStyle}"
+                                                 Text="{Binding SourceText, Mode=OneWay}"
+                                                 FlowDirection="{Binding SourceFlowDirection}"
+                                                 TextAlignment="{Binding SourceTextAlignment}"
+                                                 Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                                 AutomationProperties.Name="Saved source text" />
+                                        <TextBox Grid.Row="1"
+                                                 Margin="0,4,0,0"
+                                                 Style="{StaticResource SelectableEntryTextStyle}"
+                                                 Text="{Binding PrimaryTranslation, Mode=OneWay}"
+                                                 FlowDirection="{Binding TranslationFlowDirection}"
+                                                 TextAlignment="{Binding TranslationTextAlignment}"
+                                                 Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                                 FontWeight="Medium"
+                                                 AutomationProperties.Name="Saved primary translation" />
+                                        <StackPanel Grid.Row="2"
+                                                    Margin="0,5,0,0"
+                                                    Orientation="Horizontal">
+                                            <Button Style="{StaticResource ActionButtonStyle}"
+                                                    Command="{Binding CopyCommand}"
+                                                    Content="Copy" />
+                                            <Button Style="{StaticResource ActionButtonStyle}"
+                                                    Command="{Binding RemoveCommand}"
+                                                    Content="Remove" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock Text="No saved words yet."
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                           FontSize="13"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding SavedWords.IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBlock Text="No matching saved words."
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                           FontSize="13"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding SavedWords.HasNoMatches, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </Grid>
+
+            <StackPanel Grid.Row="3"
+                        Margin="8,3"
+                        Orientation="Horizontal">
+                <Button Style="{StaticResource ActionButtonStyle}"
+                        Command="{Binding SavedWords.ExportCsvCommand}"
+                        Content="Export CSV" />
+                <Button Style="{StaticResource ActionButtonStyle}"
+                        Command="{Binding SavedWords.ExportTextCommand}"
+                        Content="Export TXT" />
+                <Button Style="{StaticResource ActionButtonStyle}"
+                        Command="{Binding SavedWords.ExportPdfCommand}"
+                        Content="Export PDF" />
+            </StackPanel>
+
+            <TextBlock Grid.Row="4"
+                       Margin="10,2,10,7"
+                       Text="{Binding SavedWords.ErrorMessage}"
+                       Foreground="{DynamicResource FloatingToolsBrushStatusError}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding SavedWords.HasErrorMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+        </Grid>
+
+        <Grid Grid.Row="1"
+              Grid.RowSpan="3"
+              Background="{DynamicResource FloatingToolsBrushSurfaceBase}"
+              Panel.ZIndex="31">
+            <Grid.Style>
+                <Style TargetType="{x:Type Grid}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFrequentWordsPage}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="36" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="8,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="34" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="34" />
+                </Grid.ColumnDefinitions>
+                <Button Width="30"
+                        Height="30"
+                        Style="{StaticResource IconButtonStyle}"
+                        Command="{Binding BackToFeedCommand}"
+                        ToolTip="Back to translations"
+                        AutomationProperties.Name="Back to translation feed">
+                    <Path Width="12"
+                          Height="12"
+                          Data="M 10,1 L 3,6 L 10,11"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                          StrokeThickness="1.3"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round" />
+                </Button>
+                <TextBlock Grid.Column="1"
+                           Text="Frequent Words"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="2"
+                        Width="30"
+                        Height="30"
+                        Style="{StaticResource IconButtonStyle}"
+                        Command="{Binding FrequentWords.ToggleSortCommand}"
+                        ToolTip="{Binding FrequentWords.SortToolTip}"
+                        AutomationProperties.Name="Reverse frequent words order">
+                    <Grid Width="13" Height="13">
+                        <Path Data="M 2,9 L 6.5,4.5 L 11,9"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                              StrokeThickness="1.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round">
+                            <Path.Style>
+                                <Style TargetType="{x:Type Path}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding FrequentWords.IsAscending}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Path.Style>
+                        </Path>
+                        <Path Data="M 2,4 L 6.5,8.5 L 11,4"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                              StrokeThickness="1.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round">
+                            <Path.Style>
+                                <Style TargetType="{x:Type Path}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding FrequentWords.IsAscending}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Path.Style>
+                        </Path>
+                    </Grid>
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <ScrollViewer Style="{StaticResource DockAwareFeedScrollViewerStyle}"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}">
+                    <ItemsControl Margin="12,2,0,4"
+                                  ItemsSource="{Binding FrequentWords.Items}"
+                                  HorizontalContentAlignment="Stretch">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="3,8,1,7">
+                                    <Grid FlowDirection="LeftToRight">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBox Margin="0,0,8,0"
+                                                 Style="{StaticResource SelectableEntryTextStyle}"
+                                                 Text="{Binding SourceText, Mode=OneWay}"
+                                                 FlowDirection="{Binding SourceFlowDirection}"
+                                                 TextAlignment="{Binding SourceTextAlignment}"
+                                                 Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                                 AutomationProperties.Name="Frequent source word" />
+                                        <TextBox Grid.Column="1"
+                                                 Style="{StaticResource SelectableEntryTextStyle}"
+                                                 Text="{Binding PrimaryTranslation, Mode=OneWay}"
+                                                 FlowDirection="{Binding TranslationFlowDirection}"
+                                                 TextAlignment="{Binding TranslationTextAlignment}"
+                                                 Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                                 FontWeight="Medium"
+                                                 AutomationProperties.Name="Frequent primary translation" />
+                                        <StackPanel Grid.Row="1"
+                                                    Grid.ColumnSpan="2"
+                                                    Margin="0,4,0,0"
+                                                    Orientation="Horizontal">
+                                            <Button Style="{StaticResource ActionButtonStyle}"
+                                                    Command="{Binding CopyCommand}"
+                                                    Content="{Binding CopyActionLabel}" />
+                                            <Button Style="{StaticResource ActionButtonStyle}"
+                                                    Command="{Binding SaveCommand}"
+                                                    Content="{Binding SaveActionLabel}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock Text="No frequent words yet."
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                           FontSize="13"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding FrequentWords.IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </Grid>
+
+            <StackPanel Grid.Row="2"
+                        Margin="8,3"
+                        Orientation="Horizontal">
+                <Button Style="{StaticResource ActionButtonStyle}"
+                        Command="{Binding FrequentWords.ExportCsvCommand}"
+                        Content="Export CSV" />
+                <Button Style="{StaticResource ActionButtonStyle}"
+                        Command="{Binding FrequentWords.ExportTextCommand}"
+                        Content="Export TXT" />
+                <Button Style="{StaticResource ActionButtonStyle}"
+                        Command="{Binding FrequentWords.ExportPdfCommand}"
+                        Content="Export PDF" />
+            </StackPanel>
+
+            <TextBlock Grid.Row="3"
+                       Margin="10,2,10,7"
+                       Text="{Binding FrequentWords.ErrorMessage}"
+                       Foreground="{DynamicResource FloatingToolsBrushStatusError}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding FrequentWords.HasErrorMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+        </Grid>
+
+        <Grid Grid.Row="1"
+              Grid.RowSpan="3"
+              Background="{DynamicResource FloatingToolsBrushSurfaceBase}"
+              Panel.ZIndex="32">
+            <Grid.Style>
+                <Style TargetType="{x:Type Grid}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSettingsPage}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <sharedControls:SettingsPageShell Title="Settings"
+                                              BackCommand="{Binding BackToFeedCommand}"
+                                              BackToolTip="Back to translations"
+                                              BackAutomationName="Back to translation feed">
+                <StackPanel>
+                    <TextBlock Text="Translation AI"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                               FontSize="11"
+                               Margin="0,4,0,7" />
+                    <CheckBox Style="{StaticResource SettingsCheckBoxStyle}"
+                              Content="Use app credentials"
+                              IsChecked="{Binding Settings.UseAppCredentials, Mode=TwoWay}" />
+                    <TextBlock Text="Model"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                               FontSize="13"
+                               Margin="0,4,0,0" />
+                    <ComboBox Margin="0,3,0,4"
+                              Style="{StaticResource SettingsComboBoxStyle}"
+                              ItemsSource="{Binding Settings.TranslationModelOptions}"
+                              SelectedValuePath="Model"
+                              SelectedValue="{Binding Settings.SelectedTranslationAiModel, Mode=TwoWay}">
+                        <ComboBox.ItemContainerStyle>
+                            <Style TargetType="{x:Type ComboBoxItem}"
+                                   BasedOn="{StaticResource SettingsComboBoxItemStyle}">
+                                <Setter Property="IsEnabled"
+                                        Value="{Binding IsSelectable}" />
+                            </Style>
+                        </ComboBox.ItemContainerStyle>
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <StackPanel Visibility="{Binding Settings.UseAppCredentials,
+                        Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Using app credentials"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                   FontSize="12"
+                                   Margin="0,3,0,4" />
+                        <Button Command="{Binding Settings.TestConnectionCommand}"
+                                Content="Test connection">
+                            <Button.Style>
+                                <Style TargetType="{x:Type Button}"
+                                       BasedOn="{StaticResource ActionButtonStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Settings.HasApiKeyConfiguration}"
+                                                     Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Visibility="{Binding Settings.IsUsingCustomCredentials,
+                        Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Provider"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                   FontSize="13"
+                                   Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding Settings.ProviderDisplayName}"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                   FontSize="12"
+                                   Margin="0,3,0,6" />
+                        <TextBlock Text="API Key"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                                   FontSize="13" />
+                        <TextBlock Text="{Binding Settings.ApiKeyStatus}"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                   FontSize="12"
+                                   Margin="0,3,0,4" />
+                        <Grid Visibility="{Binding Settings.IsApiKeyDisplayMode,
+                            Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Settings.HasStoredApiKey}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Button Style="{StaticResource ActionButtonStyle}"
+                                        Command="{Binding Settings.BeginApiKeyEditCommand}"
+                                        Content="Add API Key" />
+                                <Button Command="{Binding Settings.TestConnectionCommand}"
+                                        Content="Test connection">
+                                    <Button.Style>
+                                        <Style TargetType="{x:Type Button}"
+                                               BasedOn="{StaticResource ActionButtonStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Settings.HasApiKeyConfiguration}"
+                                                             Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Settings.HasStoredApiKey}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Button Style="{StaticResource ActionButtonStyle}"
+                                        Command="{Binding Settings.BeginApiKeyEditCommand}"
+                                        Content="Replace" />
+                                <Button Style="{StaticResource ActionButtonStyle}"
+                                        Command="{Binding Settings.RemoveApiKeyCommand}"
+                                        Content="Remove"
+                                        ToolTip="Remove the securely stored Translation API key" />
+                                <Button Style="{StaticResource ActionButtonStyle}"
+                                        Command="{Binding Settings.TestConnectionCommand}"
+                                        Content="Test connection" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Visibility="{Binding Settings.IsApiKeyEditing,
+                            Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <PasswordBox x:Name="SettingsApiKeyPasswordBox"
+                                         Style="{StaticResource SettingsPasswordBoxStyle}"
+                                         PasswordChar="●"
+                                         IsVisibleChanged="SettingsApiKeyPasswordBox_OnIsVisibleChanged"
+                                         AutomationProperties.Name="New Translation OpenAI API key" />
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <Button Style="{StaticResource ActionButtonStyle}"
+                                        Click="SaveApiKey_OnClick"
+                                        Content="Save"
+                                        ToolTip="Securely save this Translation API key" />
+                                <Button Style="{StaticResource ActionButtonStyle}"
+                                        Click="CancelApiKey_OnClick"
+                                        Content="Cancel" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock x:Name="SettingsConnectionStatusText"
+                               Text="{Binding Settings.ConnectionStatusMessage}"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                               FontSize="12"
+                               Margin="0,3,0,0"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Settings.ConnectionStatusMessage}"
+                                                 Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Settings.ConnectionStatusMessage}"
+                                                 Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="Language"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                               FontSize="11"
+                               Margin="0,14,0,6" />
+                    <TextBlock Text="Language Mode"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                               FontSize="13" />
+                    <ComboBox Margin="0,3,0,0"
+                              Style="{StaticResource SettingsComboBoxStyle}"
+                              ItemsSource="{Binding Settings.LanguageModes}"
+                              SelectedValuePath="Value"
+                              SelectedValue="{Binding Settings.SelectedLanguageMode, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <TextBlock Text="History"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                               FontSize="11"
+                               Margin="0,14,0,6" />
+                    <TextBlock Text="History Limit"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                               FontSize="13" />
+                    <ComboBox Margin="0,3,0,5"
+                              Style="{StaticResource SettingsComboBoxStyle}"
+                              ItemsSource="{Binding Settings.SupportedHistoryLimits}"
+                              SelectedItem="{Binding Settings.SelectedHistoryLimit, Mode=TwoWay}" />
+                    <Button Height="30"
+                            HorizontalAlignment="Left"
+                            Style="{StaticResource ActionButtonStyle}"
+                            Command="{Binding ClearHistoryCommand}"
+                            Content="Clear all history" />
+
+                    <TextBlock Text="{Binding Settings.ErrorMessage}"
+                               Foreground="{DynamicResource FloatingToolsBrushStatusError}"
+                               FontSize="12"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </sharedControls:SettingsPageShell>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,0 +1,949 @@
+<UserControl x:Class="FloatingTools.App.Views.CalendarToolView"
+             x:Name="CalendarRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FloatingTools.App.Controls"
+             xmlns:sharedControls="clr-namespace:FloatingTools.App.SharedUi.Controls"
+             xmlns:popups="clr-namespace:FloatingTools.App.SharedUi.Popups"
+             Background="{DynamicResource FloatingToolsBrushSurfaceBase}"
+             FlowDirection="LeftToRight">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <Style x:Key="CalendarToolHeaderStyle"
+               TargetType="{x:Type sharedControls:ToolHeaderControl}"
+               BasedOn="{StaticResource FloatingToolsSharedToolHeaderStyle}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceHeader}" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+            <Setter Property="ChevronBrush" Value="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+
+        <Style x:Key="CalendarMenuItemButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedActionButtonStyle}">
+            <Setter Property="Height" Value="{StaticResource FloatingToolsSizeMenuItemHeight}" />
+            <Setter Property="Margin" Value="10,0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="CalendarCompactPopupItemButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedActionButtonStyle}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+
+        <Style x:Key="CalendarNavigationButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedIconButtonStyle}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+            <Setter Property="FontSize" Value="18" />
+        </Style>
+
+        <Style x:Key="CalendarSingleLineInputStyle"
+               TargetType="{x:Type TextBox}"
+               BasedOn="{StaticResource FloatingToolsSharedBorderedTextBoxStyle}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="AcceptsReturn" Value="False" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
+        </Style>
+
+        <Style x:Key="CalendarTodayButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="TodaySurface"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="{StaticResource FloatingToolsRadiusSmall}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TodaySurface" Property="Background" Value="{DynamicResource FloatingToolsBrushOverlayHover}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="TodaySurface" Property="Background" Value="{DynamicResource FloatingToolsBrushOverlayPressed}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CalendarMonthDayButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="Margin" Value="1" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="DaySurface" Background="Transparent"
+                                CornerRadius="{StaticResource FloatingToolsRadiusControl}">
+                            <Grid>
+                                <Ellipse x:Name="TodayMarker" Width="25" Height="25"
+                                         Fill="{DynamicResource FloatingToolsBrushAccentToday}" Visibility="Collapsed" />
+                                <TextBlock x:Name="DayNumber" Text="{Binding DayNumber}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <Ellipse x:Name="EventMarker" Width="3" Height="3"
+                                         Margin="0,0,0,3" HorizontalAlignment="Center"
+                                         VerticalAlignment="Bottom" Fill="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                         Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False">
+                                <Setter Property="Opacity" Value="0.42" />
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="DaySurface" Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceSubtleHover}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="DaySurface" Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSurfaceFocus}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="DaySurface" Property="Background"
+                                        Value="{DynamicResource FloatingToolsBrushSelection}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                <Setter TargetName="TodayMarker" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsHoliday}" Value="True">
+                                <Setter TargetName="DayNumber" Property="Foreground" Value="{DynamicResource FloatingToolsBrushAccentHoliday}" />
+                                <Setter TargetName="DayNumber" Property="FontWeight" Value="SemiBold" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HasEvents}" Value="True">
+                                <Setter TargetName="EventMarker" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsSupported}" Value="False">
+                                <Setter Property="IsEnabled" Value="False" />
+                                <Setter Property="Opacity" Value="0.18" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CalendarWeekDayButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedActionButtonStyle}">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="8,6" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSelection}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="CalendarReadOnlyEventTextStyle" TargetType="{x:Type TextBox}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="IsReadOnlyCaretVisible" Value="False" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="Cursor" Value="IBeam" />
+        </Style>
+
+        <Style x:Key="CalendarEventActionsButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource FloatingToolsSharedIconButtonStyle}">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.72" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, ElementName=EventRow}" Value="True">
+                    <Setter Property="Opacity" Value="1" />
+                    <Setter Property="IsHitTestVisible" Value="True" />
+                </DataTrigger>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="Opacity" Value="1" />
+                    <Setter Property="IsHitTestVisible" Value="True" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="CalendarViewSelectorPopupTemplate">
+            <Border Width="126" Padding="{StaticResource FloatingToolsSpacingMenuSurface}"
+                    Background="{DynamicResource FloatingToolsBrushSurfaceElevated}"
+                    BorderBrush="{DynamicResource FloatingToolsBrushBorderDefault}"
+                    BorderThickness="1" CornerRadius="{StaticResource FloatingToolsRadiusMenu}">
+                <StackPanel>
+                    <Button Command="{Binding ShowMonthCommand}" Click="PopupOption_OnClick"
+                            AutomationProperties.Name="Month view">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource CalendarMenuItemButtonStyle}">
+                                <Setter Property="Margin" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMonthView}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSelection}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <TextBlock Text="{Binding MonthLabel}" />
+                    </Button>
+                    <Button Command="{Binding ShowWeekCommand}" Click="PopupOption_OnClick"
+                            AutomationProperties.Name="Week view">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource CalendarMenuItemButtonStyle}">
+                                <Setter Property="Margin" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsWeekView}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSelection}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <TextBlock Text="{Binding WeekLabel}" />
+                    </Button>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="CalendarEventActionsPopupTemplate">
+            <Border x:Name="CalendarEventActionsPopupSurface" Width="100" Padding="2"
+                    Background="{DynamicResource FloatingToolsBrushSurfaceElevated}"
+                    BorderBrush="{DynamicResource FloatingToolsBrushBorderDefault}"
+                    BorderThickness="1" CornerRadius="{StaticResource FloatingToolsRadiusMenu}">
+                <StackPanel>
+                    <Button Style="{StaticResource CalendarCompactPopupItemButtonStyle}"
+                            Command="{Binding Owner.BeginEditEventCommand}"
+                            CommandParameter="{Binding Entry}" Click="PopupOption_OnClick">
+                        <TextBlock Text="{Binding Owner.EditLabel}"
+                                   FlowDirection="{Binding Owner.ContentFlowDirection}"
+                                   TextAlignment="{Binding Owner.ContentTextAlignment}" />
+                    </Button>
+                    <Button Style="{StaticResource CalendarCompactPopupItemButtonStyle}"
+                            Command="{Binding Owner.CopyEventCommand}"
+                            CommandParameter="{Binding Entry}" Click="PopupOption_OnClick">
+                        <TextBlock Text="{Binding Owner.CopyLabel}"
+                                   FlowDirection="{Binding Owner.ContentFlowDirection}"
+                                   TextAlignment="{Binding Owner.ContentTextAlignment}" />
+                    </Button>
+                    <Button Style="{StaticResource CalendarCompactPopupItemButtonStyle}"
+                            Command="{Binding Owner.DeleteEventCommand}"
+                            CommandParameter="{Binding Entry}" Click="PopupOption_OnClick">
+                        <TextBlock Text="{Binding Owner.DeleteLabel}"
+                                   FlowDirection="{Binding Owner.ContentFlowDirection}"
+                                   TextAlignment="{Binding Owner.ContentTextAlignment}" />
+                    </Button>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="34" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <sharedControls:ToolHeaderControl x:Name="CalendarToolHeader" Grid.Row="0"
+                                          Style="{StaticResource CalendarToolHeaderStyle}"
+                                          Title="{Binding HeaderTitle}"
+                                          IsMenuOpen="{Binding IsHeaderExpanded}"
+                                          ExpandedContentRoot="{Binding ElementName=CalendarHeaderExpandedContent}"
+                                          Command="{Binding ToggleHeaderCommand}"
+                                          IsSecondaryActionVisible="True"
+                                          SecondaryActionCommand="{Binding BeginQuickAddCommand}"
+                                          SecondaryActionContent="+"
+                                          SecondaryActionToolTip="Add event"
+                                          SecondaryActionAutomationName="Add event"
+                                          ToolTip="Open Calendar menu" />
+
+        <Grid x:Name="CalendarBody" Grid.Row="1" Margin="8,4,8,8"
+              Visibility="{Binding IsCalendarPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="38" />
+                <RowDefinition Height="25" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="64" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="34" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" HorizontalAlignment="Left" Orientation="Horizontal" Panel.ZIndex="1">
+                    <Button Style="{StaticResource CalendarNavigationButtonStyle}"
+                            Command="{Binding NavigatePreviousCommand}" Content="‹"
+                            ToolTip="Previous period" AutomationProperties.Name="Previous period" />
+                    <Button Style="{StaticResource CalendarNavigationButtonStyle}"
+                            Command="{Binding NavigateNextCommand}" Content="›"
+                            ToolTip="Next period" AutomationProperties.Name="Next period" />
+                </StackPanel>
+                <TextBlock x:Name="PeriodTitleText" Grid.ColumnSpan="3" Text="{Binding PeriodTitle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
+                           TextTrimming="CharacterEllipsis">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasHebrewWeekTitle}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <StackPanel x:Name="HebrewSameMonthWeekPeriodTitle" Grid.ColumnSpan="3"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            FlowDirection="LeftToRight">
+                    <StackPanel.Style>
+                        <Style TargetType="{x:Type StackPanel}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHebrewSameMonthWeekTitle}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBlock x:Name="HebrewSameMonthWeekMonthText"
+                               Text="{Binding HebrewWeekTitle.StartMonthText}"
+                               FlowDirection="RightToLeft"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock Text=" " FlowDirection="LeftToRight"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock x:Name="HebrewSameMonthWeekNumericText"
+                               Text="{Binding HebrewWeekTitle.StartNumericText}"
+                               FlowDirection="LeftToRight"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                </StackPanel>
+                <StackPanel x:Name="HebrewCrossMonthWeekPeriodTitle" Grid.ColumnSpan="3"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            FlowDirection="LeftToRight">
+                    <StackPanel.Style>
+                        <Style TargetType="{x:Type StackPanel}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHebrewCrossMonthWeekTitle}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBlock x:Name="HebrewCrossMonthWeekEndMonthText"
+                               Text="{Binding HebrewWeekTitle.EndMonthText}"
+                               FlowDirection="RightToLeft"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock Text=" " FlowDirection="LeftToRight"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock x:Name="HebrewCrossMonthWeekEndNumericText"
+                               Text="{Binding HebrewWeekTitle.EndNumericText}"
+                               FlowDirection="LeftToRight"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock x:Name="HebrewCrossMonthWeekRangeSeparatorText"
+                               Text=" – " FlowDirection="LeftToRight"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock x:Name="HebrewCrossMonthWeekStartMonthText"
+                               Text="{Binding HebrewWeekTitle.StartMonthText}"
+                               FlowDirection="RightToLeft"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock Text=" " FlowDirection="LeftToRight"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <TextBlock x:Name="HebrewCrossMonthWeekStartNumericText"
+                               Text="{Binding HebrewWeekTitle.StartNumericText}"
+                               FlowDirection="LeftToRight"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                </StackPanel>
+                <Button x:Name="ViewSelectorButton" Grid.Column="2" HorizontalAlignment="Right" Panel.ZIndex="1"
+                        Style="{StaticResource FloatingToolsSharedIconButtonStyle}"
+                        Click="ViewSelectorButton_OnClick" Content="⋯" FontSize="18"
+                        ToolTip="Calendar view" AutomationProperties.Name="Choose calendar view" />
+            </Grid>
+
+            <Button Grid.Row="1" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="{Binding ContentHorizontalAlignment}"
+                    Style="{StaticResource CalendarTodayButtonStyle}"
+                    Command="{Binding GoToTodayCommand}" ToolTip="Go to today"
+                    AutomationProperties.Name="Go to today">
+                <TextBlock Text="{Binding TodayIndicatorText}" FontSize="11"
+                           FlowDirection="{Binding ContentFlowDirection}"
+                           TextAlignment="{Binding ContentTextAlignment}"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+            </Button>
+
+            <Grid x:Name="CalendarPeriodRegion" Grid.Row="2"
+                  Background="Transparent" MouseLeftButtonDown="CalendarPeriodRegion_OnMouseLeftButtonDown">
+                <ScrollViewer x:Name="MonthScrollViewer"
+                              Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                              controls:SmoothWheelScrollBehavior.IsEnabled="True"
+                              Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding IsMonthView, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                <Grid x:Name="MonthContentLayer"
+                      Height="{Binding ActualHeight, ElementName=CalendarPeriodRegion}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="24" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <ItemsControl x:Name="WeekdayHeaderItems" ItemsSource="{Binding WeekdayHeaders}"
+                                  FlowDirection="{Binding ContentFlowDirection}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Rows="1" Columns="7" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" FontSize="10"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl x:Name="MonthDayItems" Grid.Row="1" ItemsSource="{Binding MonthDays}"
+                                  FlowDirection="{Binding ContentFlowDirection}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="{Binding MonthWeekRowCount}" Columns="7" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource CalendarMonthDayButtonStyle}"
+                                        IsEnabled="{Binding IsSupported}"
+                                        Command="{Binding DataContext.SelectDateCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                        CommandParameter="{Binding Date}" AutomationProperties.Name="{Binding Date}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+                    <Border x:Name="MonthOverlayInset"
+                            Height="{Binding ActualHeight, ElementName=DayPanelOverlay}"
+                            IsHitTestVisible="False" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <ScrollViewer x:Name="WeekScrollViewer"
+                              Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                              controls:SmoothWheelScrollBehavior.IsEnabled="True"
+                              Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding IsWeekView, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                    <ItemsControl x:Name="WeekDayItems" ItemsSource="{Binding WeekDays}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="WeekDaySection" Padding="0,3,8,8"
+                                        BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}" BorderThickness="0,0,0,1">
+                                    <StackPanel>
+                                        <Button Style="{StaticResource CalendarWeekDayButtonStyle}"
+                                                Command="{Binding DataContext.SelectDateCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                CommandParameter="{Binding Date}" AutomationProperties.Name="{Binding DateTitle}">
+                                            <Grid>
+                                                <TextBlock Text="{Binding DateTitle}"
+                                                           FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                           TextAlignment="{Binding DataContext.ContentTextAlignment, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding DataContext.TodayLabel, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                           HorizontalAlignment="{Binding DataContext.TodayBadgeHorizontalAlignment, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                           Foreground="{DynamicResource FloatingToolsBrushAccentHoliday}" FontSize="11"
+                                                           Visibility="{Binding IsToday, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            </Grid>
+                                        </Button>
+                                        <ItemsControl Margin="8,2,8,0" ItemsSource="{Binding HolidayNames}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                                                               FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                               TextAlignment="{Binding DataContext.ContentTextAlignment, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                               Foreground="{DynamicResource FloatingToolsBrushAccentHoliday}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <ItemsControl x:Name="WeekEventItems" Margin="8,2,8,0"
+                                                      ItemsSource="{Binding Entries}"
+                                                      AlternationCount="2147483647"
+                                                      FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
+                                                        <TextBlock Margin="6,0" VerticalAlignment="Center" Text="•"
+                                                                   FlowDirection="LeftToRight"
+                                                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType={x:Type ContentPresenter}}}"
+                                                                                     Value="0">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBox Text="{Binding Text}" Style="{StaticResource CalendarReadOnlyEventTextStyle}"
+                                                                 FlowDirection="{Binding FlowDirection}"
+                                                                 TextAlignment="{Binding TextAlignment}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border x:Name="WeekOverlayInset"
+                            Height="{Binding ActualHeight, ElementName=DayPanelOverlay}"
+                            IsHitTestVisible="False" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <Grid x:Name="DayPanelOverlay" Grid.Row="2"
+                  VerticalAlignment="Bottom" Panel.ZIndex="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="17" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <GridSplitter x:Name="DayPanelSplitter" Height="17"
+                               HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                               ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                               Background="Transparent" Cursor="SizeNS"
+                               DragDelta="DayPanelSplitter_OnDragDelta"
+                               PreviewMouseLeftButtonDown="DayPanelSplitter_OnPreviewMouseLeftButtonDown"
+                               PreviewMouseLeftButtonUp="DayPanelSplitter_OnPreviewMouseLeftButtonUp"
+                               PreviewKeyDown="DayPanelSplitter_OnPreviewKeyDown"
+                               AutomationProperties.Name="Collapse or expand day panel">
+                    <GridSplitter.Template>
+                        <ControlTemplate TargetType="{x:Type GridSplitter}">
+                            <Grid Background="Transparent">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Height="1" Margin="8,0,2,0" VerticalAlignment="Center"
+                                        Background="{DynamicResource FloatingToolsBrushBorderDefault}" />
+                                <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                           FontSize="12" TextAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}">
+                                            <Setter Property="Text" Value="˅" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.IsDayPanelExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                             Value="False">
+                                                    <Setter Property="Text" Value="˄" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <Border Grid.Column="2" Height="1" Margin="2,0,8,0" VerticalAlignment="Center"
+                                        Background="{DynamicResource FloatingToolsBrushBorderDefault}" />
+                            </Grid>
+                        </ControlTemplate>
+                    </GridSplitter.Template>
+                </GridSplitter>
+
+                <Border x:Name="DayPanelExpandedContent" Grid.Row="1"
+                        Height="106" MinHeight="92" MaxHeight="268"
+                        Padding="8,6,8,4"
+                        Background="{DynamicResource FloatingToolsBrushSurfaceBase}"
+                        BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}" BorderThickness="0,1,0,0"
+                        Visibility="{Binding IsDayPanelExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <ScrollViewer x:Name="DayPanelScrollViewer"
+                              Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                              controls:SmoothWheelScrollBehavior.IsEnabled="True"
+                              Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid MinHeight="88">
+                        <TextBlock Text="{Binding DayPanel.EmptyStateText}"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DayPanel.HasSelection}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsQuickAddDatePromptOpen}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <StackPanel Visibility="{Binding IsQuickAddDatePromptOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    FlowDirection="{Binding ContentFlowDirection}">
+                            <TextBlock Text="{Binding QuickAddDatePrompt}" FontWeight="SemiBold"
+                                       TextAlignment="{Binding ContentTextAlignment}" />
+                            <TextBox x:Name="QuickAddDateTextBox" Margin="0,7,0,0"
+                                     Style="{StaticResource FloatingToolsSharedTextBoxStyle}"
+                                     Text="{Binding QuickAddDateText, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewKeyDown="QuickAddDateTextBox_OnPreviewKeyDown"
+                                     ToolTip="Date" />
+                            <TextBlock Margin="0,4,0,0" Text="{Binding QuickAddValidationMessage}"
+                                       Foreground="{DynamicResource FloatingToolsBrushStatusError}" FontSize="11" TextWrapping="Wrap" />
+                            <StackPanel Margin="0,7,0,0" Orientation="Horizontal">
+                                <Button Style="{StaticResource FloatingToolsSharedActionButtonStyle}"
+                                        Command="{Binding ContinueQuickAddDateCommand}" Content="{Binding ContinueLabel}" />
+                                <Button Margin="6,0,0,0" Style="{StaticResource FloatingToolsSharedActionButtonStyle}"
+                                        Command="{Binding CancelQuickAddDateCommand}" Content="{Binding CancelLabel}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel FlowDirection="{Binding ContentFlowDirection}">
+                            <StackPanel.Style>
+                                <Style TargetType="{x:Type StackPanel}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DayPanel.HasSelection}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Grid FlowDirection="{Binding ContentFlowDirection}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="DayPanelDateTitle" Text="{Binding DayPanel.DateTitle}"
+                                           FlowDirection="{Binding ContentFlowDirection}"
+                                           TextAlignment="{Binding ContentTextAlignment}"
+                                           FontWeight="SemiBold" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                                <Button x:Name="DayPanelAddButton" Grid.Column="1"
+                                        Style="{StaticResource FloatingToolsSharedIconButtonStyle}"
+                                        Command="{Binding BeginAddEventCommand}" Content="+"
+                                        ToolTip="Add event" AutomationProperties.Name="Add another event" />
+                            </Grid>
+                            <ItemsControl Margin="0,5,0,0" ItemsSource="{Binding DayPanel.HolidayNames}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                                                   TextAlignment="{Binding DataContext.ContentTextAlignment, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                   Foreground="{DynamicResource FloatingToolsBrushAccentHoliday}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,6,0,3" Text="{Binding EventsHeading}"
+                                       TextAlignment="{Binding ContentTextAlignment}"
+                                       Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Visibility="{Binding DayPanel.HasEntries, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Border x:Name="DayPanelEventsSection" Padding="3,2"
+                                    Background="{DynamicResource FloatingToolsBrushSurfaceInput}"
+                                    CornerRadius="{StaticResource FloatingToolsRadiusSmall}"
+                                    Visibility="{Binding DayPanel.HasEntries, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl x:Name="DayPanelEventItems"
+                                          ItemsSource="{Binding DayPanel.Entries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid x:Name="EventRow" Margin="0,1" Background="Transparent"
+                                              FlowDirection="LeftToRight">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="28" /></Grid.ColumnDefinitions>
+                                            <Border x:Name="EventSurface" Grid.ColumnSpan="2"
+                                                    IsHitTestVisible="False" CornerRadius="4">
+                                                <Border.Style>
+                                                    <Style TargetType="{x:Type Border}">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=EventRow}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceSubtleHover}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsSearchTarget}" Value="True">
+                                                                <Setter Property="Background"
+                                                                        Value="{DynamicResource FloatingToolsBrushSelection}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <TextBox Margin="5,4" Text="{Binding Text}"
+                                                     Style="{StaticResource CalendarReadOnlyEventTextStyle}"
+                                                     FlowDirection="{Binding FlowDirection}"
+                                                     TextAlignment="{Binding TextAlignment}" />
+                                            <Button Grid.Column="1" Style="{StaticResource CalendarEventActionsButtonStyle}"
+                                                    Click="EventActionsButton_OnClick" Content="⋯"
+                                                    ToolTip="Event actions" AutomationProperties.Name="Event actions" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            </Border>
+
+                            <Border x:Name="EventEditorSection">
+                                <Border.Style>
+                                    <Style TargetType="{x:Type Border}">
+                                        <Setter Property="Margin" Value="0,5,0,0" />
+                                        <Setter Property="Padding" Value="6" />
+                                        <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceInput}" />
+                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="CornerRadius" Value="{StaticResource FloatingToolsRadiusInput}" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEventEditorOpen}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsAddingEvent}" Value="True">
+                                                <Setter Property="Margin" Value="0,6,0,0" />
+                                                <Setter Property="Padding" Value="0,4,0,0" />
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushBorderDefault}" />
+                                                <Setter Property="BorderThickness" Value="0,1,0,0" />
+                                                <Setter Property="CornerRadius" Value="0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <TextBlock FontSize="11" Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}">
+                                                <Setter Property="Text" Value="{Binding AddEventLabel}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEditingExistingEvent}" Value="True">
+                                                        <Setter Property="Text" Value="{Binding EditEventLabel}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBox x:Name="EventEditorTextBox" Margin="0,1,0,0"
+                                             Style="{StaticResource CalendarSingleLineInputStyle}"
+                                             Text="{Binding EventDraftText, UpdateSourceTrigger=PropertyChanged}"
+                                             PreviewKeyDown="EventEditorTextBox_OnPreviewKeyDown"
+                                             IsVisibleChanged="EventEditorTextBox_OnIsVisibleChanged" />
+                                    <StackPanel Margin="0,1,0,0" Orientation="Horizontal">
+                                        <Button x:Name="EventSaveButton"
+                                                Style="{StaticResource FloatingToolsSharedActionButtonStyle}"
+                                                Command="{Binding SaveEventCommand}" Content="{Binding SaveLabel}" />
+                                        <Button x:Name="EventCancelButton" Margin="6,0,0,0"
+                                                Style="{StaticResource FloatingToolsSharedActionButtonStyle}"
+                                                Command="{Binding CancelEventEditorCommand}" Content="{Binding CancelLabel}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Margin="0,5,0,0" Text="{Binding DayPanel.NoEventsText}"
+                                       TextAlignment="{Binding ContentTextAlignment}"
+                                       Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                       Visibility="{Binding DayPanel.ShowNoEvents, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <TextBlock Margin="0,5,0,0" Text="{Binding OperationErrorMessage}"
+                                       TextAlignment="{Binding ContentTextAlignment}"
+                                       Foreground="{DynamicResource FloatingToolsBrushStatusError}" FontSize="11" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Grid Grid.Row="1" Visibility="{Binding IsSettingsPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <sharedControls:SettingsPageShell Title="{Binding CalendarSettingsTitle}"
+                                              BackCommand="{Binding BackToCalendarCommand}"
+                                              BackToolTip="Back"
+                                              BackAutomationName="Back to Calendar"
+                                              BodyMargin="0"
+                                              BodyScrollMargin="12,4,8,10"
+                                              HeaderFlowDirection="{Binding ContentFlowDirection}"
+                                              TitleFlowDirection="{Binding ContentFlowDirection}"
+                                              TitleTextAlignment="{Binding ContentTextAlignment}">
+                <StackPanel FlowDirection="{Binding ContentFlowDirection}">
+                    <TextBlock Text="{Binding LanguageLabel}" Margin="0,6,0,5"
+                               TextAlignment="{Binding ContentTextAlignment}"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                    <ComboBox x:Name="CalendarLanguageComboBox"
+                              Style="{StaticResource SettingsComboBoxStyle}"
+                              ItemsSource="{Binding LanguageChoices}" SelectedValuePath="Value"
+                              SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="{Binding DefaultViewLabel}" Margin="0,13,0,5"
+                               TextAlignment="{Binding ContentTextAlignment}"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                    <ComboBox x:Name="CalendarDefaultViewComboBox"
+                              Style="{StaticResource SettingsComboBoxStyle}"
+                              ItemsSource="{Binding ViewChoices}" SelectedValuePath="Value"
+                              SelectedValue="{Binding SelectedDefaultView, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="{Binding FirstDayLabel}" Margin="0,13,0,5"
+                               TextAlignment="{Binding ContentTextAlignment}"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                    <ComboBox x:Name="CalendarFirstDayComboBox"
+                              Style="{StaticResource SettingsComboBoxStyle}"
+                              ItemsSource="{Binding FirstDayChoices}" SelectedValuePath="Value"
+                              SelectedValue="{Binding SelectedFirstDayOfWeek, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <CheckBox Margin="0,15,0,0" Content="{Binding ShowHolidaysLabel}"
+                              Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                              IsChecked="{Binding ShowHolidays, Mode=TwoWay}" />
+                    <TextBlock Margin="0,8,0,0" Text="{Binding SettingsErrorMessage}"
+                               Foreground="{DynamicResource FloatingToolsBrushStatusError}" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+            </sharedControls:SettingsPageShell>
+        </Grid>
+
+        <Border x:Name="CalendarHeaderExpandedContent" Grid.Row="1" VerticalAlignment="Top"
+                Background="{DynamicResource FloatingToolsBrushSurfaceHeader}" Panel.ZIndex="20"
+                Visibility="{Binding IsHeaderExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel Margin="0,5">
+                <Button Style="{StaticResource CalendarMenuItemButtonStyle}"
+                        FlowDirection="{Binding ContentFlowDirection}"
+                        Command="{Binding GoToTodayCommand}" AutomationProperties.Name="Go to today">
+                    <TextBlock Text="{Binding TodayIndicatorText}"
+                               FlowDirection="{Binding ContentFlowDirection}"
+                               TextAlignment="{Binding ContentTextAlignment}" />
+                </Button>
+                <Grid Margin="10,2">
+                    <TextBox x:Name="CalendarSearchTextBox"
+                             Style="{StaticResource CalendarSingleLineInputStyle}"
+                             FlowDirection="{Binding ContentFlowDirection}"
+                             TextAlignment="{Binding ContentTextAlignment}"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             PreviewKeyDown="CalendarSearchTextBox_OnPreviewKeyDown"
+                             AutomationProperties.Name="Search Calendar" />
+                    <TextBlock Margin="9,0" VerticalAlignment="Center"
+                               IsHitTestVisible="False" Text="{Binding SearchPlaceholder}"
+                               FlowDirection="{Binding ContentFlowDirection}"
+                               TextAlignment="{Binding ContentTextAlignment}"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchText}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+                <TextBlock Margin="12,0,12,1" Text="{Binding SearchValidationMessage}"
+                           FlowDirection="{Binding ContentFlowDirection}"
+                           TextAlignment="{Binding ContentTextAlignment}"
+                           Foreground="{DynamicResource FloatingToolsBrushStatusError}" FontSize="11" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SearchValidationMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding SearchValidationMessage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <ScrollViewer x:Name="SearchResultsScrollViewer" MaxHeight="126"
+                              Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}"
+                              Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                              controls:SmoothWheelScrollBehavior.IsEnabled="True"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding SearchResults}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button x:Name="SearchResultButton"
+                                        Style="{StaticResource CalendarMenuItemButtonStyle}"
+                                        HorizontalContentAlignment="Stretch"
+                                        Command="{Binding DataContext.SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel x:Name="SearchResultContent" HorizontalAlignment="Stretch"
+                                                FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
+                                        <TextBlock x:Name="SearchResultDateText" Text="{Binding DateTitle}" FontSize="10"
+                                                   FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                   TextAlignment="{Binding DataContext.ContentTextAlignment, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+                                        <TextBlock x:Name="SearchResultEventText" Text="{Binding Text}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                   TextAlignment="{Binding DataContext.ContentTextAlignment, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <Button Style="{StaticResource CalendarMenuItemButtonStyle}"
+                        FlowDirection="{Binding ContentFlowDirection}"
+                        Command="{Binding OpenSettingsCommand}" Content="{Binding SettingsLabel}"
+                        AutomationProperties.Name="Calendar settings" />
+            </StackPanel>
+        </Border>
+
+        <popups:AnchoredPopupHost x:Name="CalendarPopupHost" Grid.RowSpan="2"
+                                  Panel.ZIndex="50" IsHitTestVisible="False" />
+    </Grid>
+</UserControl>
