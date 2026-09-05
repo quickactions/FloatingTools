@@ -10,6 +10,11 @@ namespace FloatingTools.App.Views;
 
 public partial class PanelWindow : Window
 {
+    private readonly TranslationToolViewModel _translationToolViewModel;
+    private readonly NotesToolViewModel _notesToolViewModel;
+    private readonly QuickChatViewModel _quickChatViewModel;
+    private readonly CalendarToolViewModel _calendarToolViewModel;
+    private readonly SettingsViewModel _applicationSettingsViewModel;
     private CornerRadius _activeContentCornerRadius;
 
     public event EventHandler? CloseRequested;
@@ -25,16 +30,64 @@ public partial class PanelWindow : Window
         InitializeComponent();
         DataContext = viewModel
             ?? throw new ArgumentNullException(nameof(viewModel));
-        TranslationTool.DataContext = translationToolViewModel
+
+        // View models stay eagerly owned (they hold the tools' live state and
+        // are shared with the coordinator); only their views are deferred.
+        _translationToolViewModel = translationToolViewModel
             ?? throw new ArgumentNullException(nameof(translationToolViewModel));
-        NotesTool.DataContext = notesToolViewModel
+        _notesToolViewModel = notesToolViewModel
             ?? throw new ArgumentNullException(nameof(notesToolViewModel));
-        QuickChatTool.DataContext = quickChatViewModel
+        _quickChatViewModel = quickChatViewModel
             ?? throw new ArgumentNullException(nameof(quickChatViewModel));
-        CalendarTool.DataContext = calendarToolViewModel
+        _calendarToolViewModel = calendarToolViewModel
             ?? throw new ArgumentNullException(nameof(calendarToolViewModel));
-        ApplicationSettings.DataContext = applicationSettingsViewModel
+        _applicationSettingsViewModel = applicationSettingsViewModel
             ?? throw new ArgumentNullException(nameof(applicationSettingsViewModel));
+    }
+
+    /// <summary>
+    /// Builds a hosted surface the first time it is shown and leaves it in place
+    /// afterwards, so a tool is constructed at most once per session and keeps
+    /// its state when the user switches away and back.
+    /// </summary>
+    private void ToolHost_OnIsVisibleChanged(
+        object sender,
+        DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is ContentControl { IsVisible: true } host)
+        {
+            EnsureHostContent(host);
+        }
+    }
+
+    private void EnsureHostContent(ContentControl host)
+    {
+        if (host.Content is not null)
+        {
+            return;
+        }
+
+        host.Content = host.Name switch
+        {
+            nameof(TranslationTool) =>
+                new TranslationToolView { DataContext = _translationToolViewModel },
+            nameof(NotesTool) =>
+                new NotesToolView { DataContext = _notesToolViewModel },
+            nameof(QuickChatTool) =>
+                new QuickChatToolView { DataContext = _quickChatViewModel },
+            nameof(CalendarTool) =>
+                new CalendarToolView { DataContext = _calendarToolViewModel },
+            nameof(ApplicationSettings) =>
+                new ApplicationSettingsView { DataContext = _applicationSettingsViewModel },
+            _ => host.Content
+        };
+    }
+
+    private T GetOrCreateToolView<T>(ContentControl host)
+        where T : class
+    {
+        EnsureHostContent(host);
+        return (T)host.Content;
     }
 
     private void CloseButton_OnClick(object sender, RoutedEventArgs e)
@@ -58,14 +111,17 @@ public partial class PanelWindow : Window
 
         switch (viewModel.ActiveTool)
         {
+            // Ctrl+F can arrive before the host's visibility change has been
+            // processed, so resolve through the same create-once path rather
+            // than assuming the view already exists.
             case ToolId.Translation:
-                TranslationTool.FocusSearch();
+                GetOrCreateToolView<TranslationToolView>(TranslationTool).FocusSearch();
                 break;
             case ToolId.Notes:
-                NotesTool.FocusSearch();
+                GetOrCreateToolView<NotesToolView>(NotesTool).FocusSearch();
                 break;
             case ToolId.Calendar:
-                CalendarTool.FocusSearch();
+                GetOrCreateToolView<CalendarToolView>(CalendarTool).FocusSearch();
                 break;
         }
     }

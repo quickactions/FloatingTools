@@ -208,6 +208,42 @@
                             Content="Cancel" />
                 </StackPanel>
             </StackPanel>
+            <!-- Belongs to the API key it tested, so it sits directly under the
+                 key's action row rather than under the model picker. -->
+            <TextBlock x:Name="ApplicationConnectionStatusText"
+                       Text="{Binding ApplicationConnectionStatusMessage}"
+                       FontSize="12"
+                       Margin="0,4,0,0"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Setter Property="Foreground"
+                                Value="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ApplicationConnectionSucceeded}"
+                                         Value="True">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource FloatingToolsBrushStatusSuccess}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ApplicationConnectionSucceeded}"
+                                         Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource FloatingToolsBrushStatusError}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ApplicationConnectionStatusMessage}"
+                                         Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ApplicationConnectionStatusMessage}"
+                                         Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
             <TextBlock Text="Default Model"
                        Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
                        FontSize="13"
@@ -230,28 +266,6 @@
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
-            <TextBlock Text="{Binding ApplicationConnectionStatusMessage}"
-                       Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
-                       FontSize="12"
-                       Margin="0,3,0,0"
-                       TextWrapping="Wrap">
-                <TextBlock.Style>
-                    <Style TargetType="{x:Type TextBlock}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ApplicationConnectionStatusMessage}"
-                                         Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ApplicationConnectionStatusMessage}"
-                                         Value="">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-
             <TextBlock Text="Global shortcuts"
                        Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
                        FontSize="11"

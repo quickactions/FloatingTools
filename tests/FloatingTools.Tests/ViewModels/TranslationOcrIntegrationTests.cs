@@ -38,6 +38,38 @@ public sealed class TranslationOcrIntegrationTests
     }
 
     [Theory]
+    [InlineData(ScreenTextCaptureStatus.Cancelled)]
+    [InlineData(ScreenTextCaptureStatus.NoText)]
+    [InlineData(ScreenTextCaptureStatus.Failed)]
+    public async Task Capture_RecordsItsOutcomeSoCallersCanTellCancellationApart(
+        ScreenTextCaptureStatus status)
+    {
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            new StubScreenTextCaptureService(new ScreenTextCaptureResult(status)));
+
+        Assert.Null(context.ViewModel.LastCaptureStatus);
+
+        await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+
+        // The global Ctrl+Alt+T handler reads this to decide whether to pull the
+        // user into Translation; a cancelled capture must stay distinguishable.
+        Assert.Equal(status, context.ViewModel.LastCaptureStatus);
+    }
+
+    [Fact]
+    public async Task SuccessfulCapture_RecordsSuccessOutcome()
+    {
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            new StubScreenTextCaptureService(ScreenTextCaptureResult.Success("HELLO")));
+
+        await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+
+        Assert.Equal(ScreenTextCaptureStatus.Success, context.ViewModel.LastCaptureStatus);
+    }
+
+    [Theory]
     [InlineData(ScreenTextCaptureStatus.Cancelled, null, null)]
     [InlineData(ScreenTextCaptureStatus.NoText, null, "No text detected.")]
     [InlineData(ScreenTextCaptureStatus.Failed, "Could not read text from the selected area.", null)]

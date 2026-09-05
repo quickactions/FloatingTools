@@ -245,7 +245,7 @@ public sealed class TranslationToolViewModelTests
         Assert.Empty(viewModel.Items);
         Assert.Equal("Hello", viewModel.InputText);
         Assert.Equal(
-            "OpenAI API key is missing. Set OPENAI_API_KEY and restart FloatingTools.",
+            "OpenAI API key is missing. Add it in Settings.",
             viewModel.ErrorMessage);
     }
 

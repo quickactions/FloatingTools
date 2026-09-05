@@ -401,6 +401,19 @@ public sealed class WindowCoordinator
         }
 
         await _translationToolViewModel.CaptureTextCommand.ExecuteAsync(null);
+
+        // Capture hides every visible window while the selection overlay is up
+        // and restores them afterwards. If the user cancelled the selection,
+        // switching tools here would drag them out of whatever tool they were
+        // using into Translation — which looks exactly like a hide/show losing
+        // the active tool. Only follow the capture into Translation when the
+        // capture actually produced something to show there.
+        if (_translationToolViewModel.LastCaptureStatus
+            == ScreenTextCaptureStatus.Cancelled)
+        {
+            return;
+        }
+
         _viewModel.SelectToolCommand.Execute(ToolId.Translation);
     }
 

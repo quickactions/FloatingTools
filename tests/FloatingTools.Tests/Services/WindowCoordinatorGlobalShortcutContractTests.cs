@@ -73,6 +73,29 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
     }
 
     [Fact]
+    public void ExtractTextHotkey_DoesNotSwitchToTranslationWhenTheCaptureWasCancelled()
+    {
+        // Screen capture hides every visible window and restores them, so
+        // force-selecting Translation after a cancelled capture drops the user
+        // out of the tool they were using and reads as "hide/show lost my tool".
+        var code = ReadWindowCoordinatorSource();
+        var body = ExtractMethodBody(code, "private async void TriggerExtractTextFromScreen()");
+
+        var guardIndex = body.IndexOf(
+            "ScreenTextCaptureStatus.Cancelled", StringComparison.Ordinal);
+        var selectIndex = body.IndexOf(
+            "_viewModel.SelectToolCommand.Execute(ToolId.Translation)",
+            StringComparison.Ordinal);
+
+        Assert.True(guardIndex >= 0, "Cancelled captures must be guarded.");
+        Assert.True(selectIndex >= 0, "A completed capture still opens Translation.");
+        Assert.True(
+            guardIndex < selectIndex,
+            "The cancellation guard must run before the tool switch.");
+        Assert.Contains("LastCaptureStatus", body);
+    }
+
+    [Fact]
     public void HideApplicationVisibility_HidesBothWindowsAndRemembersPanelVisibility()
     {
         var code = ReadWindowCoordinatorSource();

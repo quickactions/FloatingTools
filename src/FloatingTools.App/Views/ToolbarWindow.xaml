@@ -256,6 +256,14 @@
                                     <Setter Property="ContentTemplate"
                                             Value="{StaticResource CalendarIconTemplate}" />
                                 </DataTrigger>
+                                <!-- Settings is a panel state rather than a tool,
+                                     so it must win over the LastUsedTool icon
+                                     above while the settings page is open. -->
+                                <DataTrigger Binding="{Binding PanelState}"
+                                             Value="{x:Static models:PanelState.ApplicationSettings}">
+                                    <Setter Property="ContentTemplate"
+                                            Value="{StaticResource ApplicationSettingsIconTemplate}" />
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </ContentControl.Style>

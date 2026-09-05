@@ -19,8 +19,11 @@ public sealed class QuickChatUiIntegrationContractTests
             .Where(element => (string?)element.Attribute("CommandParameter")
                 == "{x:Static models:ToolId.QuickChat}")
             .ToArray();
+        // Quick Chat is hosted lazily: the panel declares exactly one host for
+        // it, still gated on the ActiveTool panel state.
         var quickChatViews = panel.Descendants()
-            .Where(element => element.Name.LocalName == "QuickChatToolView")
+            .Where(element =>
+                (string?)element.Attribute(Xaml + "Name") == "QuickChatTool")
             .ToArray();
 
         Assert.Single(quickChatButtons);

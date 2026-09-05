@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FloatingTools.App.Models;
 using FloatingTools.App.Services;
+using FloatingTools.App.Services.OpenAI;
 
 namespace FloatingTools.App.ViewModels;
 
@@ -15,6 +16,7 @@ public partial class QuickChatViewModel : ObservableObject, IAsyncDisposable
     private readonly IClipboardService _clipboardService;
     private readonly IClipboardImageProvider _clipboardImageProvider;
     private readonly IUiDispatcher _dispatcher;
+    private readonly IOpenAiConfigurationProvider? _configurationProvider;
     private PendingSendTransfer? _pendingSendTransfer;
     private bool _disposed;
 
@@ -41,13 +43,22 @@ public partial class QuickChatViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(IsSettingsPage))]
     private QuickChatPage _currentPage;
 
+    /// <summary>
+    /// Compact composer-level error, matching how Translation reports the same
+    /// class of problem. A missing API key lives here instead of becoming a
+    /// persisted assistant turn in the conversation feed.
+    /// </summary>
+    [ObservableProperty]
+    private string? _errorMessage;
+
     public QuickChatViewModel(
         IActiveQuickChatConversation session,
         IQuickChatImageStore imageStore,
         IClipboardService? clipboardService = null,
         IClipboardImageProvider? clipboardImageProvider = null,
         IUiDispatcher? dispatcher = null,
-        QuickChatSettingsViewModel? settings = null)
+        QuickChatSettingsViewModel? settings = null,
+        IOpenAiConfigurationProvider? configurationProvider = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _imageStore = imageStore ?? throw new ArgumentNullException(nameof(imageStore));
@@ -55,6 +66,7 @@ public partial class QuickChatViewModel : ObservableObject, IAsyncDisposable
         _clipboardImageProvider = clipboardImageProvider
             ?? new NullClipboardImageProvider();
         _dispatcher = dispatcher ?? new SynchronizationContextUiDispatcher();
+        _configurationProvider = configurationProvider;
 
         SendCommand = new AsyncRelayCommand(SendAsync, () => CanSend);
         StopCommand = new AsyncRelayCommand(StopAsync, () => IsGenerating);
@@ -175,6 +187,20 @@ public partial class QuickChatViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
+        ErrorMessage = null;
+
+        // A missing key can never produce a response, so the exchange is not
+        // started at all: nothing is added to the conversation or persisted,
+        // and the problem is reported next to the composer the way Translation
+        // reports it. Retry is deliberately not offered — there is nothing to
+        // retry until a key exists.
+        if (_configurationProvider is not null
+            && _configurationProvider.GetConfiguration() is null)
+        {
+            ErrorMessage = AiConfigurationMessages.MissingApiKey;
+            return;
+        }
+
         var text = DraftText;
         var pending = PendingAttachments.ToArray();
         var attachments = pending.Select(item => item.Attachment).ToArray();
@@ -198,6 +224,25 @@ public partial class QuickChatViewModel : ObservableObject, IAsyncDisposable
                 ApplyAcceptedTransfer(transfer);
             }
         }
+        catch (QuickChatServiceException exception)
+        {
+            // The conversation has already written a safe, user-facing message
+            // onto the assistant turn and cleared its generating state, so the
+            // failure is shown inline. Rethrowing here would surface inside
+            // AsyncRelayCommand as an unhandled exception and terminate the
+            // application (this is what a missing OpenAI key used to do).
+            if (transfer.Accepted.Task.IsCompletedSuccessfully && !transfer.IsApplied)
+            {
+                ApplyAcceptedTransfer(transfer);
+            }
+
+            // Reached only if configuration disappeared between the pre-send
+            // check and the request; keep the composer wording consistent.
+            if (exception.FailureKind == QuickChatFailureKind.NotConfigured)
+            {
+                ErrorMessage = AiConfigurationMessages.MissingApiKey;
+            }
+        }
         finally
         {
             if (ReferenceEquals(_pendingSendTransfer, transfer))
@@ -218,7 +263,16 @@ public partial class QuickChatViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        await _session.RetryAsync(message.Id);
+        try
+        {
+            await _session.RetryAsync(message.Id);
+        }
+        catch (QuickChatServiceException)
+        {
+            // Same boundary as SendAsync: the retried assistant turn already
+            // carries the inline error, so the failure must not escape into
+            // AsyncRelayCommand and take the application down.
+        }
     }
 
     public async Task NewChatAsync()

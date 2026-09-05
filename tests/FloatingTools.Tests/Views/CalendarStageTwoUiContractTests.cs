@@ -22,8 +22,15 @@ public sealed class CalendarStageTwoUiContractTests
         Assert.Contains(panel.Descendants(Presentation + "Button"),
             element => (string?)element.Attribute("CommandParameter")
                 == "{x:Static models:ToolId.Calendar}");
-        Assert.Single(panel.Descendants(),
-            element => element.Name.LocalName == "CalendarToolView");
+        // The Calendar surface is hosted lazily, so the panel declares exactly
+        // one Calendar host gated on ToolId.Calendar rather than an inline view.
+        var calendarHost = Assert.Single(
+            panel.Descendants(Presentation + "ContentControl"),
+            element => (string?)element.Attribute(X + "Name") == "CalendarTool");
+        Assert.Contains(
+            calendarHost.Descendants(Presentation + "Condition"),
+            condition => (string?)condition.Attribute("Value")
+                == "{x:Static models:ToolId.Calendar}");
         Assert.Contains(toolbar.Descendants(Presentation + "DataTrigger"),
             element => (string?)element.Attribute("Value")
                 == "{x:Static models:ToolId.Calendar}");

@@ -183,6 +183,13 @@ public partial class TranslationToolViewModel : ObservableObject
 
     public event EventHandler? ComposerFocusRequested;
 
+    /// <summary>
+    /// Outcome of the most recent Extract Text from Screen run. Callers that
+    /// react to a capture (the global Ctrl+Alt+T handler) use this to avoid
+    /// pulling the user into Translation when they cancelled the capture.
+    /// </summary>
+    public ScreenTextCaptureStatus? LastCaptureStatus { get; private set; }
+
     private async Task CaptureTextAsync()
     {
         if (IsCapturingText)
@@ -193,9 +200,11 @@ public partial class TranslationToolViewModel : ObservableObject
         IsCapturingText = true;
         CaptureMessage = null;
         ErrorMessage = null;
+        LastCaptureStatus = null;
         try
         {
             var result = await _screenTextCaptureService.CaptureTextAsync();
+            LastCaptureStatus = result.Status;
             switch (result.Status)
             {
                 case ScreenTextCaptureStatus.Success
@@ -213,6 +222,7 @@ public partial class TranslationToolViewModel : ObservableObject
         }
         catch
         {
+            LastCaptureStatus = ScreenTextCaptureStatus.Failed;
             ErrorMessage = "Could not read text from the selected area.";
         }
         finally

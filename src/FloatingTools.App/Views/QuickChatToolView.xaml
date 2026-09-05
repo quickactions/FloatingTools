@@ -317,8 +317,32 @@
                 </TextBlock>
             </Grid>
 
+            <StackPanel Grid.Row="1">
+            <!-- Compact composer-level error, mirroring Translation's inline
+                 status. Configuration problems appear here instead of being
+                 persisted as an assistant turn in the conversation. -->
+            <TextBlock x:Name="ComposerErrorText"
+                       Text="{Binding ErrorMessage}"
+                       Foreground="{DynamicResource FloatingToolsBrushStatusError}"
+                       FontSize="12"
+                       Margin="8,4,6,0"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ErrorMessage}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ErrorMessage}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <Border x:Name="ComposerContainer"
-                    Grid.Row="1" Margin="8,6,6,7" Padding="7,6"
+                    Margin="8,6,6,7" Padding="7,6"
                     Background="{DynamicResource FloatingToolsBrushSurfaceInput}" BorderBrush="{DynamicResource FloatingToolsBrushBorderInput}" BorderThickness="1" CornerRadius="12"
                     AllowDrop="True"
                     PreviewDragOver="ComposerContainer_OnPreviewDragOver"
@@ -392,6 +416,7 @@
                     </Grid>
                 </Grid>
             </Border>
+            </StackPanel>
         </Grid>
 
         <Grid Grid.Row="1" Background="{DynamicResource FloatingToolsBrushSurfaceBase}"

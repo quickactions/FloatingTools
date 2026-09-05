@@ -16,6 +16,7 @@
     <Color x:Key="FloatingToolsColorForegroundSecondary">#FFD4D4D7</Color>
     <Color x:Key="FloatingToolsColorForegroundMuted">#FFB8B8BD</Color>
     <Color x:Key="FloatingToolsColorStatusError">#FFFFA7A7</Color>
+    <Color x:Key="FloatingToolsColorStatusSuccess">#FF8FD19E</Color>
     <Color x:Key="FloatingToolsColorBorderDefault">#FF555559</Color>
     <Color x:Key="FloatingToolsColorBorderInput">#FF55555A</Color>
     <Color x:Key="FloatingToolsColorBorderDivider">#FF4A4A4E</Color>
@@ -65,6 +66,8 @@
                      Color="{StaticResource FloatingToolsColorForegroundMuted}" />
     <SolidColorBrush x:Key="FloatingToolsBrushStatusError"
                      Color="{StaticResource FloatingToolsColorStatusError}" />
+    <SolidColorBrush x:Key="FloatingToolsBrushStatusSuccess"
+                     Color="{StaticResource FloatingToolsColorStatusSuccess}" />
     <SolidColorBrush x:Key="FloatingToolsBrushBorderDefault"
                      Color="{StaticResource FloatingToolsColorBorderDefault}" />
     <SolidColorBrush x:Key="FloatingToolsBrushBorderInput"

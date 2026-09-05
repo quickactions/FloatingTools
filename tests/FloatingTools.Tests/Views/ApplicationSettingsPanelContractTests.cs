@@ -41,8 +41,11 @@ public sealed class ApplicationSettingsPanelContractTests
         var coordinator = File.ReadAllText(
             FindSourcePath("Services", "WindowCoordinator.cs"));
 
-        var settingsView = panel.Descendants()
-            .Single(element => element.Name.LocalName == "ApplicationSettingsView");
+        // Settings is hosted lazily like every tool, but still lives inside the
+        // normal panel infrastructure and is still gated on its panel state.
+        var settingsView = panel.Descendants(Presentation + "ContentControl")
+            .Single(element =>
+                (string?)element.Attribute(X + "Name") == "ApplicationSettings");
         var settingsTrigger = settingsView.Descendants(Presentation + "DataTrigger")
             .Single();
 
@@ -144,7 +147,12 @@ public sealed class ApplicationSettingsPanelContractTests
 
         Assert.Contains("notesToolViewModel,\n            quickChatViewModel,\n            calendarToolViewModel,\n            translationToolViewModel.Settings);",
             NormalizeLineEndings(app));
-        Assert.Contains("ApplicationSettings.DataContext = applicationSettingsViewModel",
+        // The panel still receives and owns the existing settings view model; it
+        // now applies it when the lazily hosted settings view is first created.
+        Assert.Contains("_applicationSettingsViewModel = applicationSettingsViewModel",
+            panelCode);
+        Assert.Contains(
+            "new ApplicationSettingsView { DataContext = _applicationSettingsViewModel }",
             panelCode);
 
         var toolParameters = panel.Descendants(Presentation + "Button")
@@ -167,10 +175,12 @@ public sealed class ApplicationSettingsPanelContractTests
     {
         var panel = XDocument.Load(FindSourcePath("Views", "PanelWindow.xaml"));
 
-        foreach (var viewName in new[] { "TranslationToolView", "NotesToolView", "QuickChatToolView", "CalendarToolView" })
+        // Hosts are lazy now, but each must still be gated on ActiveTool so a
+        // tool surface can never appear outside the active-tool panel state.
+        foreach (var hostName in new[] { "TranslationTool", "NotesTool", "QuickChatTool", "CalendarTool" })
         {
-            var view = panel.Descendants()
-                .Single(element => element.Name.LocalName == viewName);
+            var view = panel.Descendants(Presentation + "ContentControl")
+                .Single(element => (string?)element.Attribute(X + "Name") == hostName);
             var trigger = view.Descendants(Presentation + "MultiDataTrigger").Single();
             Assert.Contains(
                 trigger.Descendants(Presentation + "Condition"),

@@ -39,13 +39,17 @@ public sealed class ThemeColorDictionaryContractTests
         {
             var dark = LoadDictionary("Colors.Dark.xaml");
 
-            // 31 Color entries + 31 matching SolidColorBrush entries (one per
+            // 32 Color entries + 32 matching SolidColorBrush entries (one per
             // color) + 2 opacity constants. C2 added 6 new semantic pairs
             // (SurfaceHeader, SurfaceSelected, StatusError, BorderDivider,
             // OverlayHover, OverlayPressed) on top of C1's original 18; C3
             // added 7 more (SurfaceMessageUser, AccentToday, AccentHoliday,
-            // AccentFavorite, StatusWarning, Scrim, SurfaceInsertionHighlight).
-            Assert.Equal(64, dark.Count);
+            // AccentFavorite, StatusWarning, Scrim, SurfaceInsertionHighlight);
+            // StatusSuccess was added for the Settings connection-test verdict,
+            // which needed a positive counterpart to StatusError.
+            Assert.Equal(66, dark.Count);
+            Assert.True(dark.Contains("FloatingToolsColorStatusSuccess"));
+            Assert.True(dark.Contains("FloatingToolsBrushStatusSuccess"));
             Assert.True(dark.Contains("FloatingToolsColorSurfaceBase"));
             Assert.True(dark.Contains("FloatingToolsBrushForegroundPrimary"));
             Assert.True(dark.Contains("FloatingToolsBrushSurfaceHover"));

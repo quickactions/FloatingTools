@@ -148,7 +148,8 @@ public partial class App : Application
             new WindowsClipboardService(),
             new WindowsClipboardImageProvider(),
             new SynchronizationContextUiDispatcher(),
-            quickChatSettingsViewModel);
+            quickChatSettingsViewModel,
+            quickChatConfigurationProvider);
         var translationToolViewModel = new TranslationToolViewModel(
             translationService,
             translationHistoryStore,

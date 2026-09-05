@@ -284,9 +284,18 @@
                 <Grid x:Name="ActiveToolContent"
                       Grid.Row="1"
                       SizeChanged="ActiveToolContent_OnSizeChanged">
-                    <views:TranslationToolView x:Name="TranslationTool">
-                        <views:TranslationToolView.Style>
-                            <Style TargetType="{x:Type views:TranslationToolView}">
+                    <!-- Tool and settings surfaces are hosted, not instantiated.
+                         Startup no longer builds five visual trees the user may
+                         never open: PanelWindow materializes a host's content the
+                         first time that host becomes visible, then keeps it alive
+                         so switching back is instant and preserves its state.
+                         Visibility still drives everything, exactly as before. -->
+                    <ContentControl x:Name="TranslationTool"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    IsVisibleChanged="ToolHost_OnIsVisibleChanged">
+                        <ContentControl.Style>
+                            <Style TargetType="{x:Type ContentControl}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <MultiDataTrigger>
@@ -300,11 +309,14 @@
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </views:TranslationToolView.Style>
-                    </views:TranslationToolView>
-                    <views:NotesToolView x:Name="NotesTool">
-                        <views:NotesToolView.Style>
-                            <Style TargetType="{x:Type views:NotesToolView}">
+                        </ContentControl.Style>
+                    </ContentControl>
+                    <ContentControl x:Name="NotesTool"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    IsVisibleChanged="ToolHost_OnIsVisibleChanged">
+                        <ContentControl.Style>
+                            <Style TargetType="{x:Type ContentControl}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <MultiDataTrigger>
@@ -318,11 +330,14 @@
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </views:NotesToolView.Style>
-                    </views:NotesToolView>
-                    <views:QuickChatToolView x:Name="QuickChatTool">
-                        <views:QuickChatToolView.Style>
-                            <Style TargetType="{x:Type views:QuickChatToolView}">
+                        </ContentControl.Style>
+                    </ContentControl>
+                    <ContentControl x:Name="QuickChatTool"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    IsVisibleChanged="ToolHost_OnIsVisibleChanged">
+                        <ContentControl.Style>
+                            <Style TargetType="{x:Type ContentControl}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <MultiDataTrigger>
@@ -336,11 +351,14 @@
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </views:QuickChatToolView.Style>
-                    </views:QuickChatToolView>
-                    <views:CalendarToolView x:Name="CalendarTool">
-                        <views:CalendarToolView.Style>
-                            <Style TargetType="{x:Type views:CalendarToolView}">
+                        </ContentControl.Style>
+                    </ContentControl>
+                    <ContentControl x:Name="CalendarTool"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    IsVisibleChanged="ToolHost_OnIsVisibleChanged">
+                        <ContentControl.Style>
+                            <Style TargetType="{x:Type ContentControl}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <MultiDataTrigger>
@@ -354,11 +372,14 @@
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </views:CalendarToolView.Style>
-                    </views:CalendarToolView>
-                    <views:ApplicationSettingsView x:Name="ApplicationSettings">
-                        <views:ApplicationSettingsView.Style>
-                            <Style TargetType="{x:Type views:ApplicationSettingsView}">
+                        </ContentControl.Style>
+                    </ContentControl>
+                    <ContentControl x:Name="ApplicationSettings"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    IsVisibleChanged="ToolHost_OnIsVisibleChanged">
+                        <ContentControl.Style>
+                            <Style TargetType="{x:Type ContentControl}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding DataContext.PanelState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
@@ -367,8 +388,8 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </views:ApplicationSettingsView.Style>
-                    </views:ApplicationSettingsView>
+                        </ContentControl.Style>
+                    </ContentControl>
                 </Grid>
             </Grid>
         </Border>

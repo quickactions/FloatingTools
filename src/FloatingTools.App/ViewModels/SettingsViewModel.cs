@@ -33,6 +33,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string? _applicationConnectionStatusMessage;
 
+    /// <summary>
+    /// Outcome of the last application connection test: true/false once a test
+    /// has produced a verdict, null when there is nothing to report. Drives the
+    /// status colour only; the message itself stays the source of truth.
+    /// </summary>
+    [ObservableProperty]
+    private bool? _applicationConnectionSucceeded;
+
     [ObservableProperty]
     private bool _isTestingConnection;
 
@@ -532,6 +540,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             var result = await _applicationConnectionTester.TestAsync(
                 cancellationToken);
             ApplicationConnectionStatusMessage = result.Message;
+            ApplicationConnectionSucceeded = result.IsSuccess;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -541,10 +550,21 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             ApplicationConnectionStatusMessage =
                 "Could not verify the OpenAI connection.";
+            ApplicationConnectionSucceeded = false;
         }
         finally
         {
             IsTestingApplicationConnection = false;
+        }
+    }
+
+    // Clearing the message (Replace/Remove/cancel/scope changes) must also drop
+    // the verdict, so a stale success/failure colour cannot outlive its text.
+    partial void OnApplicationConnectionStatusMessageChanged(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            ApplicationConnectionSucceeded = null;
         }
     }
 

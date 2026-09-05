@@ -302,8 +302,11 @@ public sealed class NotesToolViewContractTests
         var xaml = File.ReadAllText(FindPath("PanelWindow.xaml"));
         Assert.Contains("ToolId.Translation", xaml);
         Assert.Contains("ToolId.Notes", xaml);
-        Assert.Contains("TranslationToolView", xaml);
-        Assert.Contains("NotesToolView", xaml);
+
+        // Both tools are hosted lazily, so the panel names their hosts rather
+        // than declaring the views inline.
+        Assert.Contains("x:Name=\"TranslationTool\"", xaml);
+        Assert.Contains("x:Name=\"NotesTool\"", xaml);
     }
 
     [Fact]
