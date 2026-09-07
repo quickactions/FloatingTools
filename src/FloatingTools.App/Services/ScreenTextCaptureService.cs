@@ -12,6 +12,21 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
     private readonly IScreenRegionCaptureService _captureService;
     private readonly ILocalOcrService _ocrService;
     private readonly Func<MonitorWorkArea, IScreenCaptureOverlay> _overlayFactory;
+    private readonly Func<MonitorWorkArea> _captureMonitor;
+    private CancellationTokenSource? _activeCapture;
+    private bool _shutdown;
+
+    internal event EventHandler? CaptureStarting;
+    internal event EventHandler? CaptureFinished;
+    internal bool IsCapturing => _activeCapture is not null;
+
+    internal void CancelActiveCapture() => _activeCapture?.Cancel();
+
+    internal void StopForShutdown()
+    {
+        _shutdown = true;
+        CancelActiveCapture();
+    }
 
     public ScreenTextCaptureService(
         WindowPlacementService placementService,
@@ -29,7 +44,8 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
         WindowPlacementService placementService,
         IScreenRegionCaptureService captureService,
         ILocalOcrService ocrService,
-        Func<MonitorWorkArea, IScreenCaptureOverlay> overlayFactory)
+        Func<MonitorWorkArea, IScreenCaptureOverlay> overlayFactory,
+        Func<MonitorWorkArea>? captureMonitor = null)
     {
         _placementService = placementService
             ?? throw new ArgumentNullException(nameof(placementService));
@@ -39,6 +55,8 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
             ?? throw new ArgumentNullException(nameof(ocrService));
         _overlayFactory = overlayFactory
             ?? throw new ArgumentNullException(nameof(overlayFactory));
+        _captureMonitor = captureMonitor ?? (() => SelectMonitor(
+            _placementService.GetCursorPosition(), _placementService.GetMonitors()));
     }
 
     public async Task<ScreenTextCaptureResult> CaptureTextAsync(
@@ -49,17 +67,32 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
         {
             return ScreenTextCaptureResult.Failed();
         }
+        if (_shutdown || IsCapturing) return ScreenTextCaptureResult.Cancelled();
+        using var captureCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activeCapture = captureCancellation;
+        cancellationToken = captureCancellation.Token;
 
         var visibleWindows = application.Windows
             .OfType<Window>()
-            .Where(window => window.IsVisible)
+            // Toolbar/panel visibility is coordinated through intentional
+            // minimization. Never remove the toolbar's taskbar entry via Hide.
+            .Where(window => window.IsVisible && window is not ToolbarWindow && window is not PanelWindow)
             .ToArray();
         var overlayOwner = application.MainWindow ?? visibleWindows.FirstOrDefault();
+        var closedWindows = new HashSet<Window>();
+        void OnAuxiliaryClosed(object? sender, EventArgs e)
+        {
+            if (sender is Window window) closedWindows.Add(window);
+        }
+        foreach (var window in visibleWindows) window.Closed += OnAuxiliaryClosed;
+        var suspensionStarted = false;
 
         try
         {
-            var cursor = _placementService.GetCursorPosition();
-            var monitor = SelectMonitor(cursor, _placementService.GetMonitors());
+            cancellationToken.ThrowIfCancellationRequested();
+            var monitor = _captureMonitor();
+            suspensionStarted = true;
+            CaptureStarting?.Invoke(this, EventArgs.Empty);
             foreach (var window in visibleWindows)
             {
                 window.Hide();
@@ -68,7 +101,8 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
             var overlay = _overlayFactory(monitor);
             var selection = await SelectWithGuaranteedCleanupAsync(
                 overlay,
-                overlayOwner);
+                overlayOwner,
+                cancellationToken);
             if (selection is null)
             {
                 return ScreenTextCaptureResult.Cancelled();
@@ -83,9 +117,11 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
             using var image = await _captureService.CaptureAsync(
                 selection.Value,
                 cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var text = await _ocrService.RecognizeEnglishAsync(
                 image,
                 cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             return !OcrTextValidator.ContainsMeaningfulEnglishText(text)
                 ? ScreenTextCaptureResult.NoText()
                 : ScreenTextCaptureResult.Success(text);
@@ -100,25 +136,36 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
         }
         finally
         {
-            foreach (var window in visibleWindows)
+            try
             {
-                if (!window.IsVisible)
+                foreach (var window in visibleWindows)
                 {
-                    window.Show();
+                    window.Closed -= OnAuxiliaryClosed;
+                    if (!_shutdown && !closedWindows.Contains(window) && !window.IsVisible)
+                    {
+                        window.Show();
+                    }
                 }
+            }
+            finally
+            {
+                _activeCapture = null;
+                if (suspensionStarted) CaptureFinished?.Invoke(this, EventArgs.Empty);
             }
         }
     }
 
     internal static async Task<PixelRect?> SelectWithGuaranteedCleanupAsync(
         IScreenCaptureOverlay overlay,
-        Window? owner)
+        Window? owner,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(overlay);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             overlay.Owner = owner;
-            return await overlay.SelectAsync();
+            return await overlay.SelectAsync().WaitAsync(cancellationToken);
         }
         finally
         {

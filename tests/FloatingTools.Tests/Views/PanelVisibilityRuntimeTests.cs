@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Threading;
+using FloatingTools.App.Platform.Windows;
 using FloatingTools.App.Models;
 using FloatingTools.App.Services;
 using FloatingTools.App.Services.OpenAI;
@@ -222,13 +225,246 @@ public sealed class PanelVisibilityRuntimeTests
             Assert.Equal(Visibility.Visible, fixture.VisibilityOf(ToolId.Translation));
         });
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ProductionTaskbarCycles_PreservePanelPageAndInstances(bool panelVisible)
+        => WpfTestApplication.Run(() =>
+        {
+            var vm = new FloatingToolbarViewModel(ToolId.Translation);
+            vm.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(vm);
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid() + ".json");
+            var settings = new AppSettings();
+            var store = new SettingsService(path);
+            var placement = new WindowPlacementService();
+            var toolbar = new ToolbarWindow(placement, store, settings);
+            using var hotkeys = new GlobalHotkeyService();
+            using var theme = new ThemeService(AppAppearanceMode.Dark, new AppAppearanceResolver(), new WindowsThemeWatcher(), new ResourceDictionary());
+            var coordinator = fixture.Coordinator(toolbar, vm, placement, store, settings, hotkeys, theme);
+            var originalMain = Application.Current.MainWindow;
+            try
+            {
+                coordinator.ShowToolbar();
+                coordinator.ShowPanel();
+                fixture.Translation.OpenSavedWordsCommand.Execute(null);
+                var content = fixture.HostContent(ToolId.Translation);
+                if (!panelVisible) coordinator.HidePanel();
+                for (var cycle = 0; cycle < 3; cycle++)
+                {
+                    typeof(WindowCoordinator).GetMethod("ToggleApplicationVisibility", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(coordinator, null);
+                    DrainDispatcher();
+                    Assert.Equal(WindowState.Minimized, toolbar.WindowState);
+                    Assert.True(toolbar.IsVisible);
+                    Assert.False(toolbar.CanUseNormalPlacement);
+                    if (cycle % 2 == 0) toolbar.RestoreUi(); // Native taskbar restoration also changes WindowState.
+                    else typeof(WindowCoordinator).GetMethod("ToggleApplicationVisibility", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(coordinator, null);
+                    DrainDispatcher();
+                    Assert.Equal(WindowState.Normal, toolbar.WindowState);
+                    Assert.True(toolbar.CanUseNormalPlacement);
+                    Assert.Equal(panelVisible, fixture.Window.IsVisible);
+                    Assert.Equal(ToolId.Translation, vm.ActiveTool);
+                    Assert.Equal(PanelState.ActiveTool, vm.PanelState);
+                    Assert.True(fixture.Translation.IsSavedWordsPage);
+                    Assert.Same(content, fixture.HostContent(ToolId.Translation));
+                    Assert.True(toolbar.Topmost);
+                    Assert.True(fixture.Window.Topmost);
+                    Assert.True(toolbar.ShowInTaskbar);
+                    Assert.False(fixture.Window.ShowInTaskbar);
+                    Assert.Same(toolbar, fixture.Window.Owner);
+                }
+                Assert.Same(originalMain, Application.Current.MainWindow);
+                var saved = settings.WindowPlacement;
+                toolbar.MinimizeUi();
+                toolbar.CompletePendingDrag();
+                coordinator.CloseAll();
+                Assert.Equal(saved, store.Load().WindowPlacement);
+            }
+            finally { coordinator.CloseAll(); System.IO.File.Delete(path); }
+        });
+
+    private static void DrainDispatcher()
+    {
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
+    }
+
+    [Theory]
+    [InlineData(false, true, "success")]
+    [InlineData(false, false, "success")]
+    [InlineData(true, true, "success")]
+    [InlineData(false, true, "cancel")]
+    [InlineData(true, true, "cancel")]
+    [InlineData(false, false, "failure")]
+    [InlineData(false, true, "restore")]
+    [InlineData(true, true, "restore")]
+    [InlineData(false, true, "query-restore")]
+    [InlineData(true, true, "hotkey-restore")]
+    [InlineData(false, true, "hide-during-capture")]
+    [InlineData(false, true, "shutdown")]
+    [InlineData(false, true, "real-overlay")]
+    public void ProductionCapture_PreservesTaskbarAndRestoresOnlyAfterCleanup(bool initiallyHidden, bool panelVisible, string outcome)
+        => WpfTestApplication.Run(() =>
+        {
+            var vm = new FloatingToolbarViewModel(ToolId.Translation);
+            vm.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(vm);
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid() + ".json");
+            var settings = new AppSettings();
+            var store = new SettingsService(path);
+            var placement = new WindowPlacementService();
+            var toolbar = new ToolbarWindow(placement, store, settings);
+            var overlay = new ControlledOverlay();
+            ScreenCaptureOverlayWindow? realOverlay = null;
+            var capture = new ScreenTextCaptureService(placement, new FakeRegionCapture(), new FakeOcr(), monitor =>
+            {
+                if (outcome == "real-overlay") return realOverlay = new ScreenCaptureOverlayWindow(monitor);
+                return overlay;
+            }, () => placement.GetMonitors().First(monitor => monitor.IsPrimary));
+            using var hotkeys = new GlobalHotkeyService();
+            using var theme = new ThemeService(AppAppearanceMode.Dark, new AppAppearanceResolver(), new WindowsThemeWatcher(), new ResourceDictionary());
+            var coordinator = fixture.Coordinator(toolbar, vm, placement, store, settings, hotkeys, theme, capture);
+            var originalMain = Application.Current.MainWindow;
+            var auxiliary = new Window { ShowInTaskbar = false, ShowActivated = false, Left = -10000 };
+            var toolbarHiddenEvents = 0;
+            try
+            {
+                Application.Current.MainWindow = toolbar;
+                coordinator.ShowToolbar();
+                coordinator.ShowPanel();
+                if (!panelVisible) coordinator.HidePanel();
+                if (initiallyHidden)
+                    typeof(WindowCoordinator).GetMethod("ToggleApplicationVisibility", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(coordinator, null);
+                var normalPlacement = settings.WindowPlacement;
+                var content = fixture.HostContent(ToolId.Translation);
+                auxiliary.Show();
+                toolbar.IsVisibleChanged += (_, _) => { if (!toolbar.IsVisible) toolbarHiddenEvents++; };
+                using var cancel = new CancellationTokenSource();
+                var task = capture.CaptureTextAsync(cancel.Token);
+                DrainDispatcher();
+                Assert.True(capture.IsCapturing);
+                Assert.False(task.IsCompleted);
+                Assert.Equal(WindowState.Minimized, toolbar.WindowState);
+                Assert.True(toolbar.IsVisible);
+                Assert.True(toolbar.ShowInTaskbar);
+                Assert.False(auxiliary.IsVisible);
+                Assert.Equal(0, toolbarHiddenEvents);
+                if (realOverlay is not null)
+                {
+                    Assert.Same(toolbar, realOverlay.Owner);
+                    Assert.True(realOverlay.IsVisible);
+                    Assert.True(realOverlay.Topmost);
+                }
+                else Assert.Same(toolbar, overlay.Owner);
+
+                switch (outcome)
+                {
+                    case "success": overlay.Selection.SetResult(new PixelRect(0, 0, 10, 10)); break;
+                    case "failure": overlay.Selection.SetException(new InvalidOperationException("Selection failed")); break;
+                    case "restore":
+                    case "query-restore":
+                        RequestNativeRestore(new WindowInteropHelper(toolbar).Handle, outcome == "restore" ? 0x0112 : 0x0013, new IntPtr(0xF120), IntPtr.Zero);
+                        Assert.Equal(WindowState.Minimized, toolbar.WindowState);
+                        Assert.False(overlay.Closed);
+                        break;
+                    case "hotkey-restore":
+                    case "hide-during-capture":
+                        typeof(WindowCoordinator).GetMethod("ToggleApplicationVisibility", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(coordinator, null);
+                        if (outcome == "hide-during-capture") cancel.Cancel();
+                        break;
+                    case "shutdown": coordinator.CloseAll(); break;
+                    default: cancel.Cancel(); break;
+                }
+                WaitForCapture(task);
+                DrainDispatcher();
+                Assert.True(task.IsCompleted);
+                var result = task.GetAwaiter().GetResult();
+                Assert.Equal(outcome == "success" ? ScreenTextCaptureStatus.Success : outcome == "failure" ? ScreenTextCaptureStatus.Failed : ScreenTextCaptureStatus.Cancelled, result.Status);
+                Assert.False(capture.IsCapturing);
+                if (realOverlay is not null) Assert.False(realOverlay.IsVisible);
+                else Assert.True(overlay.Closed);
+                if (outcome == "shutdown")
+                {
+                    Assert.False(toolbar.IsVisible);
+                    Assert.False(auxiliary.IsVisible);
+                }
+                else
+                {
+                    Assert.Equal(0, toolbarHiddenEvents);
+                    Assert.True(auxiliary.IsVisible);
+                    var remainsHidden = (initiallyHidden && outcome != "restore" && outcome != "hotkey-restore") || outcome == "hide-during-capture";
+                    Assert.Equal(remainsHidden ? WindowState.Minimized : WindowState.Normal, toolbar.WindowState);
+                    if (!remainsHidden) Assert.Equal(panelVisible, fixture.Window.IsVisible);
+                    else Assert.Equal(normalPlacement, settings.WindowPlacement);
+                    Assert.Same(content, fixture.HostContent(ToolId.Translation));
+                    Assert.Equal(ToolId.Translation, vm.ActiveTool);
+                }
+            }
+            finally
+            {
+                coordinator.CloseAll();
+                auxiliary.Close();
+                Application.Current.MainWindow = originalMain;
+                System.IO.File.Delete(path);
+            }
+        });
+
+    private static void WaitForCapture(Task task)
+    {
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        var frame = new DispatcherFrame();
+        var timeout = new DispatcherTimer(DispatcherPriority.Send) { Interval = TimeSpan.FromSeconds(5) };
+        timeout.Tick += (_, _) => frame.Continue = false;
+        _ = task.ContinueWith(_ => dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,
+            new Action(() => frame.Continue = false)), TaskScheduler.Default);
+        timeout.Start();
+        try { Dispatcher.PushFrame(frame); }
+        finally { timeout.Stop(); }
+        Assert.True(task.IsCompleted, "Capture must finish after its selection completes or is cancelled.");
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr RequestNativeRestore(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+    private sealed class ControlledOverlay : IScreenCaptureOverlay
+    {
+        public Window? Owner { get; set; }
+        public bool Closed { get; private set; }
+        public TaskCompletionSource<PixelRect?> Selection { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<PixelRect?> SelectAsync() => Selection.Task;
+        public void CloseOverlay() { Closed = true; Selection.TrySetResult(null); }
+    }
+
+    private sealed class FakeRegionCapture : IScreenRegionCaptureService
+    {
+        public Task<CapturedScreenImage> CaptureAsync(PixelRect region, CancellationToken cancellationToken = default)
+            => Task.FromResult(new CapturedScreenImage([1]));
+    }
+
+    private sealed class FakeOcr : ILocalOcrService
+    {
+        public Task<string> RecognizeEnglishAsync(CapturedScreenImage image, CancellationToken cancellationToken = default)
+            => Task.FromResult("Hello world");
+        public void Dispose() { }
+    }
+
     private sealed class PanelFixture(
         PanelWindow window,
-        TranslationToolViewModel translation) : IDisposable
+        TranslationToolViewModel translation,
+        NotesToolViewModel notes,
+        QuickChatViewModel quickChat,
+        CalendarToolViewModel calendar) : IDisposable
     {
         public PanelWindow Window { get; } = window;
 
         public TranslationToolViewModel Translation { get; } = translation;
+
+        public WindowCoordinator Coordinator(ToolbarWindow toolbar, FloatingToolbarViewModel vm,
+            WindowPlacementService placement, SettingsService store, AppSettings settings,
+            GlobalHotkeyService hotkeys, ThemeService theme, ScreenTextCaptureService? capture = null) => new(toolbar, Window, vm,
+                placement, store, settings, notes, new IdleQuickChatSession(), quickChat, calendar,
+                Translation, hotkeys, theme, capture);
 
         public static PanelFixture Create(FloatingToolbarViewModel toolbarViewModel)
         {
@@ -273,7 +509,7 @@ public sealed class PanelVisibilityRuntimeTests
             };
             window.Show();
             window.UpdateLayout();
-            return new PanelFixture(window, translation);
+            return new PanelFixture(window, translation, notes, quickChat, calendar);
         }
 
         /// <summary>Materialized content of a tool host, or null if never opened.</summary>

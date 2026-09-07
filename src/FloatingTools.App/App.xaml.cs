@@ -208,7 +208,8 @@ public partial class App : Application
             calendarToolViewModel,
             translationToolViewModel,
             new GlobalHotkeyService(),
-            themeService);
+            themeService,
+            screenTextCaptureService);
 
         MainWindow = toolbarWindow;
         coordinator.ShowToolbar();

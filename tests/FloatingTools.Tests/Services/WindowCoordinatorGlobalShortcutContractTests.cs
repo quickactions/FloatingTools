@@ -102,8 +102,8 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
         var body = ExtractMethodBody(code, "private void HideApplicationVisibility()");
 
         Assert.Contains("_visibilitySession.Hide(PanelWindow.IsVisible)", body);
-        Assert.Contains("HidePanel()", body);
-        Assert.Contains("ToolbarWindow.Hide()", body);
+        Assert.Contains("ToolbarWindow.MinimizeUi()", body);
+        Assert.DoesNotContain("ToolbarWindow.Hide()", body);
     }
 
     [Fact]

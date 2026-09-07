@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:FloatingTools.App.Models"
         Title="FloatingTools"
+        Icon="/FloatingTools.App;component/Resources/Icons/FloatingTools_AppIcon.ico"
         Width="80"
         Height="48"
         SizeToContent="Manual"
@@ -11,7 +12,7 @@
         AllowsTransparency="True"
         Background="Transparent"
         Topmost="True"
-        ShowInTaskbar="False"
+        ShowInTaskbar="True"
         ShowActivated="True"
         SnapsToDevicePixels="True">
     <Window.InputBindings>

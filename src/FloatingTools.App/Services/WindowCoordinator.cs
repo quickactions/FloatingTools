@@ -33,6 +33,14 @@ public sealed class WindowCoordinator
     private bool _globalHotkeysRegistered;
     private bool _themeWatcherStarted;
     private ToolId _observedTool;
+    private readonly ScreenTextCaptureService? _screenTextCaptureService;
+    private bool _captureSuspended;
+    private bool _capturePanelWasVisible;
+    private WindowState _captureToolbarState;
+    private bool _restoreAfterCapture;
+    private bool _restoreCapturePanelOnNormal;
+    private bool _exitRequested;
+    private bool IsStopping => _isClosing || _exitRequested;
 
     public WindowCoordinator(
         ToolbarWindow toolbarWindow,
@@ -47,7 +55,8 @@ public sealed class WindowCoordinator
         CalendarToolViewModel calendarToolViewModel,
         TranslationToolViewModel translationToolViewModel,
         GlobalHotkeyService globalHotkeyService,
-        ThemeService themeService)
+        ThemeService themeService,
+        ScreenTextCaptureService? screenTextCaptureService = null)
     {
         ToolbarWindow = toolbarWindow
             ?? throw new ArgumentNullException(nameof(toolbarWindow));
@@ -75,6 +84,12 @@ public sealed class WindowCoordinator
             ?? throw new ArgumentNullException(nameof(globalHotkeyService));
         _themeService = themeService
             ?? throw new ArgumentNullException(nameof(themeService));
+        _screenTextCaptureService = screenTextCaptureService;
+        if (_screenTextCaptureService is not null)
+        {
+            _screenTextCaptureService.CaptureStarting += OnCaptureStarting;
+            _screenTextCaptureService.CaptureFinished += OnCaptureFinished;
+        }
         _exitWorkflow = new ExitWorkflow(
             [
                 new("Notes preparation", () =>
@@ -110,6 +125,8 @@ public sealed class WindowCoordinator
         ToolbarWindow.DragCompleted += OnToolbarDragCompleted;
         ToolbarWindow.Closing += OnToolbarWindowClosing;
         ToolbarWindow.Closed += OnToolbarWindowClosed;
+        ToolbarWindow.NormalPlacementReady += OnToolbarNormalPlacementReady;
+        ToolbarWindow.CaptureRestoreRequested += OnCaptureRestoreRequested;
         PanelWindow.CloseRequested += OnPanelCloseRequested;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
@@ -120,10 +137,12 @@ public sealed class WindowCoordinator
 
     public void ShowToolbar()
     {
+        if (IsStopping || _visibilitySession.IsHidden || _captureSuspended) return;
         if (!ToolbarWindow.IsVisible)
         {
             ToolbarWindow.Show();
         }
+        ToolbarWindow.RestoreUi();
 
         EnsureOwnership();
         EnsureGlobalHotkeysRegistered();
@@ -133,13 +152,16 @@ public sealed class WindowCoordinator
     public void ShowPanel()
     {
         if (_viewModel.PanelState == PanelState.Closed
+            || _visibilitySession.IsHidden
+            || _captureSuspended
             || _panelDragSession.IsDragActive
-            || _isClosing)
+            || IsStopping)
         {
             return;
         }
 
         ShowToolbar();
+        if (!ToolbarWindow.CanUseNormalPlacement) return;
         EnsureOwnership();
         AlignPanelToToolbar();
         ToolbarWindow.UpdatePanelConnection(isPanelConnected: true);
@@ -169,6 +191,8 @@ public sealed class WindowCoordinator
         }
 
         _isClosing = true;
+        ToolbarWindow.StopUiRestoration();
+        _screenTextCaptureService?.StopForShutdown();
         _panelDragSession.Cancel();
         Unsubscribe();
         CloseWindow(PanelWindow, "panel window close");
@@ -177,6 +201,7 @@ public sealed class WindowCoordinator
 
     private void AlignPanelToToolbar()
     {
+        if (!ToolbarWindow.CanUseNormalPlacement || _visibilitySession.IsHidden || IsStopping || _captureSuspended) return;
         var toolbarHandle = new WindowInteropHelper(ToolbarWindow).Handle;
         var toolbarBounds = _placementService.GetWindowBounds(toolbarHandle);
         var monitors = _placementService.GetMonitors();
@@ -343,7 +368,7 @@ public sealed class WindowCoordinator
 
     private void ToggleApplicationVisibility()
     {
-        if (_isClosing)
+        if (IsStopping)
         {
             return;
         }
@@ -360,24 +385,36 @@ public sealed class WindowCoordinator
 
     private void HideApplicationVisibility()
     {
+        _restoreAfterCapture = false;
+        _restoreCapturePanelOnNormal = false;
+        if (_captureSuspended)
+        {
+            _visibilitySession.Hide(_capturePanelWasVisible);
+            return;
+        }
+        ToolbarWindow.CompletePendingDrag();
         if (!_visibilitySession.Hide(PanelWindow.IsVisible))
         {
             return;
         }
 
-        if (PanelWindow.IsVisible)
-        {
-            HidePanel();
-        }
-
-        if (ToolbarWindow.IsVisible)
-        {
-            ToolbarWindow.Hide();
-        }
+        ToolbarWindow.MinimizeUi();
     }
 
     private void RestoreApplicationVisibility()
     {
+        if (IsStopping) return;
+        if (_captureSuspended)
+        {
+            _restoreAfterCapture = true;
+            _screenTextCaptureService?.CancelActiveCapture();
+            return;
+        }
+        if (!ToolbarWindow.CanUseNormalPlacement)
+        {
+            ToolbarWindow.RestoreUi();
+            return;
+        }
         if (!_visibilitySession.Show())
         {
             return;
@@ -389,8 +426,55 @@ public sealed class WindowCoordinator
         }
         else
         {
+            if (PanelWindow.IsVisible) PanelWindow.Hide();
             ShowToolbar();
         }
+        ToolbarWindow.Activate();
+    }
+
+    private void OnToolbarNormalPlacementReady(object? sender, EventArgs e)
+    {
+        if (IsStopping || _captureSuspended) return;
+        if (_visibilitySession.IsHidden) RestoreApplicationVisibility();
+        else if (_restoreCapturePanelOnNormal)
+        {
+            _restoreCapturePanelOnNormal = false;
+            if (_capturePanelWasVisible) ShowPanel(); else HidePanel();
+        }
+        else if (_viewModel.PanelState != PanelState.Closed) ShowPanel();
+    }
+
+    private void OnCaptureStarting(object? sender, EventArgs e)
+    {
+        if (IsStopping) throw new OperationCanceledException();
+        ToolbarWindow.CompletePendingDrag();
+        _capturePanelWasVisible = PanelWindow.IsVisible && !_visibilitySession.IsHidden;
+        _captureToolbarState = ToolbarWindow.WindowState;
+        _restoreAfterCapture = false;
+        _captureSuspended = true;
+        ToolbarWindow.DeferRestoreForCapture = true;
+        ToolbarWindow.MinimizeUi();
+    }
+
+    private void OnCaptureRestoreRequested(object? sender, EventArgs e) => RestoreApplicationVisibility();
+
+    private void OnCaptureFinished(object? sender, EventArgs e)
+    {
+        // A native restore may be queued just as capture completes. Preserve
+        // that intent even if its dispatcher callback has not run yet.
+        _restoreAfterCapture |= ToolbarWindow.TakePendingCaptureRestore();
+        _captureSuspended = false;
+        ToolbarWindow.DeferRestoreForCapture = false;
+        if (IsStopping) return;
+        if (_restoreAfterCapture && _visibilitySession.IsHidden)
+        {
+            RestoreApplicationVisibility();
+            return;
+        }
+        if (_visibilitySession.IsHidden || (!_restoreAfterCapture && _captureToolbarState == WindowState.Minimized)) return;
+        _restoreCapturePanelOnNormal = true;
+        if (ToolbarWindow.CanUseNormalPlacement) OnToolbarNormalPlacementReady(this, EventArgs.Empty);
+        else ToolbarWindow.RestoreUi();
     }
 
     private async void TriggerExtractTextFromScreen()
@@ -402,7 +486,7 @@ public sealed class WindowCoordinator
 
         await _translationToolViewModel.CaptureTextCommand.ExecuteAsync(null);
 
-        // Capture hides every visible window while the selection overlay is up
+        // Capture temporarily removes the UI while the selection overlay is up
         // and restores them afterwards. If the user cancelled the selection,
         // switching tools here would drag them out of whatever tool they were
         // using into Translation — which looks exactly like a hide/show losing
@@ -566,13 +650,20 @@ public sealed class WindowCoordinator
         await RequestExitAsync();
     }
 
-    internal Task RequestExitAsync() => _exitWorkflow.ExecuteAsync();
+    internal Task RequestExitAsync()
+    {
+        _exitRequested = true;
+        ToolbarWindow.StopUiRestoration();
+        _screenTextCaptureService?.StopForShutdown();
+        return _exitWorkflow.ExecuteAsync();
+    }
 
     private void OnToolbarWindowClosed(object? sender, EventArgs e)
     {
         if (!_isClosing)
         {
             _isClosing = true;
+            _screenTextCaptureService?.StopForShutdown();
             _panelDragSession.Cancel();
             CloseWindow(PanelWindow, "panel window close");
         }
@@ -590,6 +681,13 @@ public sealed class WindowCoordinator
         ToolbarWindow.DragCompleted -= OnToolbarDragCompleted;
         ToolbarWindow.Closing -= OnToolbarWindowClosing;
         ToolbarWindow.Closed -= OnToolbarWindowClosed;
+        ToolbarWindow.NormalPlacementReady -= OnToolbarNormalPlacementReady;
+        ToolbarWindow.CaptureRestoreRequested -= OnCaptureRestoreRequested;
+        if (_screenTextCaptureService is not null)
+        {
+            _screenTextCaptureService.CaptureStarting -= OnCaptureStarting;
+            _screenTextCaptureService.CaptureFinished -= OnCaptureFinished;
+        }
         PanelWindow.CloseRequested -= OnPanelCloseRequested;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
     }

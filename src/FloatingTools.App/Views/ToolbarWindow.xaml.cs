@@ -1,8 +1,10 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using FloatingTools.App.Models;
 using FloatingTools.App.Platform.Windows;
 using FloatingTools.App.Services;
@@ -11,6 +13,11 @@ namespace FloatingTools.App.Views;
 
 public partial class ToolbarWindow : Window
 {
+    private const int WmQueryOpen = 0x0013;
+    private const int WmSysCommand = 0x0112;
+    private const long SystemCommandMask = 0xFFF0;
+    private const long ScMinimize = 0xF020;
+    private const long ScRestore = 0xF120;
     private readonly WindowPlacementService _placementService;
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
@@ -22,6 +29,106 @@ public partial class ToolbarWindow : Window
     private bool _isDragging;
     private bool _sourceInitialized;
     private bool _isPanelConnected;
+    private bool _visibilityTransition;
+    private bool _applicationMinimizeInProgress;
+    private bool _closed;
+    private HwndSource? _source;
+    private bool _restoreRequestQueued;
+    private bool _captureRestorePending;
+    private bool _shutdownStarted;
+
+    internal bool DeferRestoreForCapture { get; set; }
+    internal event EventHandler? CaptureRestoreRequested;
+
+    internal bool TakePendingCaptureRestore()
+    {
+        var pending = _captureRestorePending;
+        _captureRestorePending = false;
+        return pending;
+    }
+
+    internal void StopUiRestoration() => _shutdownStarted = true;
+
+    public event EventHandler? NormalPlacementReady;
+
+    public bool CanUseNormalPlacement => _sourceInitialized && !_closed
+        && !_visibilityTransition && WindowState == WindowState.Normal
+        && !IsIconic(_windowHandle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsIconic(IntPtr window);
+
+    public void CompletePendingDrag() => CompleteDrag(releaseMouseCapture: true);
+
+    public void MinimizeUi()
+    {
+        if (_closed || WindowState == WindowState.Minimized) return;
+        CompletePendingDrag();
+        _visibilityTransition = true;
+        _applicationMinimizeInProgress = true;
+        try { WindowState = WindowState.Minimized; }
+        finally { _applicationMinimizeInProgress = false; }
+    }
+
+    public void RestoreUi()
+    {
+        if (_closed || _shutdownStarted || WindowState == WindowState.Normal) return;
+        _visibilityTransition = true;
+        WindowState = WindowState.Normal;
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        _visibilityTransition = true;
+        base.OnStateChanged(e);
+        if (WindowState == WindowState.Normal)
+        {
+            // Let native restore finish before reading or persisting geometry.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (_closed || _shutdownStarted || WindowState != WindowState.Normal || IsIconic(_windowHandle)) return;
+                _visibilityTransition = false;
+                NormalPlacementReady?.Invoke(this, EventArgs.Empty);
+            }));
+        }
+    }
+
+    private IntPtr OnWindowMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if ((DeferRestoreForCapture || _shutdownStarted) && WindowState == WindowState.Minimized
+            && (message == WmQueryOpen || (message == WmSysCommand && (wParam.ToInt64() & SystemCommandMask) == ScRestore)))
+        {
+            // WM_QUERYOPEN/SC_RESTORE: finish capture cleanup before opening.
+            // Never close an overlay or change focus inside the native callback.
+            handled = true;
+            if (_shutdownStarted) return IntPtr.Zero;
+            _captureRestorePending = true;
+            if (!_restoreRequestQueued)
+            {
+                _restoreRequestQueued = true;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    _restoreRequestQueued = false;
+                    if (!_closed && !_shutdownStarted && TakePendingCaptureRestore())
+                        CaptureRestoreRequested?.Invoke(this, EventArgs.Empty);
+                }));
+            }
+            return IntPtr.Zero;
+        }
+        if (message == WmSysCommand && (wParam.ToInt64() & SystemCommandMask) == ScMinimize
+            && WindowState != WindowState.Minimized && !_applicationMinimizeInProgress)
+        {
+            // Block system minimize before it can flash the UI. Intentional
+            // application minimization uses MinimizeUi, not SC_MINIMIZE.
+            handled = true;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_closed && !_shutdownStarted && !DeferRestoreForCapture && WindowState == WindowState.Normal) Activate();
+            }));
+        }
+        return IntPtr.Zero;
+    }
 
     public event EventHandler? TranslationRequested;
 
@@ -67,6 +174,8 @@ public partial class ToolbarWindow : Window
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         _windowHandle = new WindowInteropHelper(this).Handle;
+        _source = HwndSource.FromHwnd(_windowHandle);
+        _source?.AddHook(OnWindowMessage);
         _settings.WindowPlacement = _placementService.Restore(
             _windowHandle,
             _settings.WindowPlacement);
@@ -79,7 +188,7 @@ public partial class ToolbarWindow : Window
         object sender,
         MouseButtonEventArgs e)
     {
-        if (e.LeftButton != MouseButtonState.Pressed || !_sourceInitialized)
+        if (e.LeftButton != MouseButtonState.Pressed || !CanUseNormalPlacement)
         {
             return;
         }
@@ -186,6 +295,7 @@ public partial class ToolbarWindow : Window
 
         try
         {
+            if (!CanUseNormalPlacement) return;
             _settings.WindowPlacement = _placementService.DockToNearestSide(_windowHandle);
             ApplyDockVisuals(_settings.WindowPlacement.DockSide);
             _settingsService.Save(_settings);
@@ -255,7 +365,7 @@ public partial class ToolbarWindow : Window
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
     {
-        if (!_sourceInitialized)
+        if (!CanUseNormalPlacement)
         {
             return;
         }
@@ -266,6 +376,9 @@ public partial class ToolbarWindow : Window
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
+        _closed = true;
+        _source?.RemoveHook(OnWindowMessage);
+        _source = null;
         SourceInitialized -= OnSourceInitialized;
         Closing -= OnWindowClosing;
         Closed -= OnWindowClosed;
