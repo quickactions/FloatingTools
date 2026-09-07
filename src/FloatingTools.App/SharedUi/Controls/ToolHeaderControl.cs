@@ -7,6 +7,36 @@ namespace FloatingTools.App.SharedUi.Controls;
 
 public sealed class ToolHeaderControl : Button
 {
+    public static readonly DependencyProperty TitleMarginProperty =
+        DependencyProperty.Register(nameof(TitleMargin), typeof(Thickness),
+            typeof(ToolHeaderControl), new PropertyMetadata(new Thickness()));
+
+    public Thickness TitleMargin
+    {
+        get => (Thickness)GetValue(TitleMarginProperty);
+        set => SetValue(TitleMarginProperty, value);
+    }
+
+    public static readonly DependencyProperty TitleFlowDirectionProperty =
+        DependencyProperty.Register(nameof(TitleFlowDirection), typeof(FlowDirection),
+            typeof(ToolHeaderControl), new PropertyMetadata(FlowDirection.LeftToRight));
+
+    public static readonly DependencyProperty TitleTextAlignmentProperty =
+        DependencyProperty.Register(nameof(TitleTextAlignment), typeof(TextAlignment),
+            typeof(ToolHeaderControl), new PropertyMetadata(TextAlignment.Left));
+
+    public FlowDirection TitleFlowDirection
+    {
+        get => (FlowDirection)GetValue(TitleFlowDirectionProperty);
+        set => SetValue(TitleFlowDirectionProperty, value);
+    }
+
+    public TextAlignment TitleTextAlignment
+    {
+        get => (TextAlignment)GetValue(TitleTextAlignmentProperty);
+        set => SetValue(TitleTextAlignmentProperty, value);
+    }
+
     private const string SecondaryActionPartName = "PART_SecondaryAction";
 
     public static readonly DependencyProperty TitleProperty =

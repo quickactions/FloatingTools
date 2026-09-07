@@ -187,7 +187,7 @@ public sealed partial class NoteCollectionViewModel : ObservableObject
             IsTemporary = isTemporary,
             Content = null
         };
-        note.Blocks.Add(new TextNoteBlock());
+        note.Blocks.Add(ActiveNoteEditor.CreateAutomaticTextBlock());
         _initializeCreatedNote(note);
         return note;
     }

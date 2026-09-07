@@ -31,7 +31,7 @@ public sealed class RichNotesViewModelTests
     }
 
     [Fact]
-    public async Task ImageAtEnd_LeavesEditableTextBlockAfterIt()
+    public async Task ImageAtEnd_KeepsExistingEditorWithoutAddingTrailingText()
     {
         var (viewModel, _, _) = await CreateAsync();
         viewModel.Content = "text";
@@ -40,10 +40,11 @@ public sealed class RichNotesViewModelTests
         var next = await viewModel.InsertClipboardImageAsync(
             target, target.Text.Length, 0, [1], 400);
 
-        Assert.NotNull(next);
-        Assert.Empty(next.Text);
-        Assert.Same(next, viewModel.ActiveBlocks[^1]);
-        Assert.IsType<ImageNoteBlock>(viewModel.ActiveBlocks[^2]);
+        Assert.Same(target, next);
+        Assert.Equal("text", target.Text);
+        Assert.Collection(viewModel.ActiveBlocks,
+            block => Assert.Same(target, block),
+            block => Assert.IsType<ImageNoteBlock>(block));
     }
 
     [Fact]
@@ -179,6 +180,9 @@ public sealed class RichNotesViewModelTests
         Assert.Collection(viewModel.ActiveBlocks,
             block => Assert.IsType<ImageNoteBlock>(block),
             block => Assert.Same(text, Assert.IsType<TextNoteBlock>(block)));
+
+        var explicitText = await viewModel.InsertTextBlockBeforeAsync(viewModel.ActiveBlocks[0]);
+        Assert.Same(explicitText, Assert.Single(viewModel.ActiveBlocks.OfType<TextNoteBlock>()));
     }
 
     [Fact]
@@ -317,7 +321,7 @@ public sealed class RichNotesViewModelTests
     }
 
     [Fact]
-    public async Task AdjacentTextBlocks_AreMergedAndZeroTextBlocksAreAllowed()
+    public async Task AdjacentTextBlocks_AreMergedAndMissingTextBlockIsRestored()
     {
         var (viewModel, _, _) = await CreateAsync();
         viewModel.ActiveNote!.Blocks.Clear();
@@ -332,22 +336,61 @@ public sealed class RichNotesViewModelTests
 
         viewModel.ActiveNote.Blocks.Clear();
         await viewModel.NormalizeActiveTextBlocksAsync();
-        Assert.Empty(viewModel.ActiveBlocks);
+        Assert.Empty(Assert.IsType<TextNoteBlock>(Assert.Single(viewModel.ActiveBlocks)).Text);
     }
 
     [Fact]
     public async Task ImageBoundary_PreservesTextBlocksOnBothSides()
     {
         var (viewModel, _, _) = await CreateAsync();
+        viewModel.Content = "beforeafter";
         await viewModel.InsertClipboardImageAsync(
-            Assert.IsType<TextNoteBlock>(viewModel.ActiveBlocks[0]), 0, 0, [1], 300);
+            Assert.IsType<TextNoteBlock>(viewModel.ActiveBlocks[0]), 6, 0, [1], 300);
 
         await viewModel.NormalizeActiveTextBlocksAsync();
 
         Assert.Collection(viewModel.ActiveBlocks,
-            block => Assert.IsType<TextNoteBlock>(block),
+            block => Assert.Equal("before", Assert.IsType<TextNoteBlock>(block).Text),
             block => Assert.IsType<ImageNoteBlock>(block),
-            block => Assert.IsType<TextNoteBlock>(block));
+            block => Assert.Equal("after", Assert.IsType<TextNoteBlock>(block).Text));
+    }
+
+    [Fact]
+    public async Task NewNote_ExplicitTextInsertionConsumesInitialPlaceholderOnlyOnce()
+    {
+        var (vm, _, _) = await CreateAsync();
+        var automatic = Assert.Single(vm.ActiveBlocks.OfType<TextNoteBlock>());
+        var first = await vm.InsertTextBlockBeforeAsync(null);
+        Assert.NotNull(first);
+        Assert.NotSame(automatic, first);
+        Assert.Same(first, Assert.Single(vm.ActiveBlocks));
+
+        var second = await vm.InsertTextBlockBeforeAsync(null);
+        Assert.NotNull(second);
+        await vm.NormalizeActiveTextBlocksAsync();
+        Assert.Equal([first, second], vm.ActiveBlocks);
+
+        await vm.UndoDocumentOperationAsync();
+        Assert.Equal(first!.Id, Assert.Single(vm.ActiveBlocks).Id);
+        await vm.UndoDocumentOperationAsync();
+        Assert.Equal(automatic.Id, Assert.Single(vm.ActiveBlocks).Id);
+        var repeated = await vm.InsertTextBlockBeforeAsync(null);
+        Assert.Same(repeated, Assert.Single(vm.ActiveBlocks));
+    }
+
+    [Fact]
+    public async Task ImageFileAtEnd_DoesNotCreateExtraTextAndUndoRestoresDocument()
+    {
+        var (vm, _, _) = await CreateAsync();
+        vm.Content = "keep this text";
+        var text = Assert.Single(vm.ActiveBlocks.OfType<TextNoteBlock>());
+        var focus = await vm.InsertImageFileAsync(text, text.Text.Length, "source.png", 300);
+        Assert.Same(text, focus);
+        Assert.Collection(vm.ActiveBlocks,
+            block => Assert.Same(text, block),
+            block => Assert.IsType<ImageNoteBlock>(block));
+        await vm.UndoDocumentOperationAsync();
+        Assert.Equal("keep this text", Assert.IsType<TextNoteBlock>(Assert.Single(vm.ActiveBlocks)).Text);
     }
 
     [Fact]
@@ -448,7 +491,7 @@ public sealed class RichNotesViewModelTests
         var target = Assert.IsType<TextNoteBlock>(viewModel.ActiveBlocks[0]);
         await viewModel.InsertClipboardImageAsync(target, 5, 0, [1], 300);
 
-        Assert.Equal("First useful words for", viewModel.ActiveTitle);
+        Assert.Equal("First useful words", viewModel.ActiveTitle);
     }
 
     [Fact]
@@ -464,15 +507,15 @@ public sealed class RichNotesViewModelTests
 
         var replacement = await viewModel.CutTextBlockAsync(block);
         Assert.Equal("whole block", clipboard.Text);
-        Assert.Null(replacement);
-        Assert.Empty(viewModel.ActiveBlocks.OfType<TextNoteBlock>());
+        Assert.Same(replacement, Assert.Single(viewModel.ActiveBlocks.OfType<TextNoteBlock>()));
+        Assert.Empty(replacement!.Text);
 
         await viewModel.UndoDocumentOperationAsync();
         var restored = Assert.Single(viewModel.ActiveBlocks.OfType<TextNoteBlock>());
         Assert.Equal("whole block", restored.Text);
 
         await viewModel.DeleteTextBlockAsync(restored);
-        Assert.Empty(viewModel.ActiveBlocks.OfType<TextNoteBlock>());
+        Assert.Empty(Assert.Single(viewModel.ActiveBlocks.OfType<TextNoteBlock>()).Text);
         await viewModel.UndoDocumentOperationAsync();
         Assert.Equal("whole block",
             Assert.Single(viewModel.ActiveBlocks.OfType<TextNoteBlock>()).Text);
@@ -602,6 +645,59 @@ public sealed class RichNotesViewModelTests
         finally
         {
             Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NonTextOnlyNotes_AcquireEditorAndKeepItThroughDeletionAndJsonReload(bool image)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"FloatingTools-editor-{Guid.NewGuid():N}.json");
+        NoteBlock CreateNonTextBlock() => image
+            ? new ImageNoteBlock { AssetFileName = "existing.png" }
+            : new LinkListNoteBlock { Items = [new NoteLinkItem { Url = "https://example.test" }] };
+        var active = NoteWithBlocks(CreateNonTextBlock());
+        var inactive = NoteWithBlocks(CreateNonTextBlock());
+        active.Title = "Stored title";
+        var store = new JsonNotesStore(path);
+        try
+        {
+            await store.SaveAsync(new NotesStorageState { Notes = [active, inactive], LastOpenedNoteId = active.Id });
+            var vm = new NotesToolViewModel(store, TimeSpan.FromHours(1), imageStore: new FakeImageStore());
+            await vm.InitializeAsync();
+            Assert.Equal("Stored title", vm.ActiveTitle);
+            Assert.All(vm.Notes, note => Assert.Empty(Assert.Single(note.Blocks.OfType<TextNoteBlock>()).Text));
+            Assert.All((await store.LoadAsync()).Notes, note => Assert.Single(note.Blocks.OfType<TextNoteBlock>()));
+
+            var original = Assert.Single(vm.ActiveBlocks.OfType<TextNoteBlock>());
+            original.Text = "delete me";
+            var replacement = await vm.DeleteTextBlockAsync(original);
+            Assert.Same(replacement, Assert.Single(vm.ActiveBlocks.OfType<TextNoteBlock>()));
+            Assert.Empty(replacement!.Text);
+            Assert.Equal(2, vm.ActiveBlocks.Count);
+
+            var reloaded = new NotesToolViewModel(store, imageStore: new FakeImageStore());
+            await reloaded.InitializeAsync();
+            var reloadedText = Assert.Single(reloaded.ActiveBlocks.OfType<TextNoteBlock>());
+            Assert.Equal(replacement.Id, reloadedText.Id);
+            Assert.Empty(reloadedText.Text);
+            if (image)
+            {
+                reloaded.SelectImage(Assert.Single(reloaded.ActiveBlocks.OfType<ImageNoteBlock>()));
+                await reloaded.DeleteSelectedImageAsync();
+                Assert.Null(reloaded.SelectedImageBlock);
+            }
+            else
+            {
+                await reloaded.DeleteLinkListBlockAsync(Assert.Single(reloaded.ActiveBlocks.OfType<LinkListNoteBlock>()));
+            }
+            Assert.Same(reloadedText, Assert.Single(reloaded.ActiveBlocks));
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(path + ".tmp");
         }
     }
 

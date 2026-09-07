@@ -67,6 +67,9 @@
                             Padding="{TemplateBinding Padding}">
                         <Grid>
                             <TextBlock Text="{TemplateBinding Title}"
+                                       Margin="{TemplateBinding TitleMargin}"
+                                       FlowDirection="{TemplateBinding TitleFlowDirection}"
+                                       TextAlignment="{TemplateBinding TitleTextAlignment}"
                                        HorizontalAlignment="{TemplateBinding TitleHorizontalAlignment}"
                                        VerticalAlignment="Center"
                                        Foreground="{TemplateBinding Foreground}"

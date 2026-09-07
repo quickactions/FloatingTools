@@ -444,7 +444,9 @@ public partial class NotesToolViewModel : ObservableObject
             return finalText;
         }
 
-        var block = new TextNoteBlock();
+        var block = note.Blocks.OfType<TextNoteBlock>().Any()
+            ? new TextNoteBlock()
+            : ActiveNoteEditor.CreateAutomaticTextBlock();
         note.Blocks.Add(block);
         return block;
     }
@@ -606,7 +608,7 @@ public partial class NotesToolViewModel : ObservableObject
         MarkNoteChanged(result.Note, scheduleSave: false);
         await SaveSnapshotAsync(cancellationToken);
         await DeleteUnreferencedAssetsAsync(result.EvictedAssets, cancellationToken);
-        return result.TrailingTextBlock;
+        return result.FocusTarget;
     }
 
     private async Task<TextNoteBlock?> InsertManagedImageAfterBlockAsync(
@@ -640,7 +642,7 @@ public partial class NotesToolViewModel : ObservableObject
         MarkNoteChanged(result.Note, scheduleSave: false);
         await SaveSnapshotAsync(cancellationToken);
         await DeleteUnreferencedAssetsAsync(result.EvictedAssets, cancellationToken);
-        return result.TrailingTextBlock;
+        return result.FocusTarget;
     }
 
     private void SetActive(NoteDocument note)

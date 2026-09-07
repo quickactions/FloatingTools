@@ -14,15 +14,15 @@ public sealed class NoteTitlePolicyTests
         }));
 
     [Theory]
-    [InlineData("one two three four five", "one two three four")]
-    [InlineData("לסיים את הפרויקט היום בבוקר", "לסיים את הפרויקט היום")]
+    [InlineData("one two three four five", "one two three")]
+    [InlineData("לסיים את הפרויקט היום בבוקר", "לסיים את הפרויקט")]
     [InlineData("hello שלום", "hello שלום")]
     public void ResolveTitle_UsesExistingTextGenerator(string text, string expected) =>
         Assert.Equal(expected, NoteTitlePolicy.ResolveTitle(Note(text)));
 
     [Fact]
     public void ResolveTitle_CombinesTextBlocksInDocumentOrder() =>
-        Assert.Equal("first second third fourth", NoteTitlePolicy.ResolveTitle(new NoteDocument
+        Assert.Equal("first second third", NoteTitlePolicy.ResolveTitle(new NoteDocument
         {
             Blocks = [new TextNoteBlock { Text = "first second" }, new TextNoteBlock { Text = "third fourth fifth" }]
         }));

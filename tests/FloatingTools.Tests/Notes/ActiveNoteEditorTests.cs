@@ -112,7 +112,7 @@ public sealed class ActiveNoteEditorTests
     }
 
     [Fact]
-    public void InsertImageIntoText_EmptyTextCreatesImageAndTrailingEditableTextWithOneSnapshot()
+    public void InsertImageIntoText_EmptyTextKeepsExistingEditorWithOneSnapshot()
     {
         var target = new TextNoteBlock();
         var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [target] };
@@ -130,13 +130,14 @@ public sealed class ActiveNoteEditorTests
             30);
 
         Assert.NotNull(result);
-        Assert.Equal([target, result.ImageBlock, result.TrailingTextBlock], note.Blocks);
+        Assert.Equal([target, result.ImageBlock], note.Blocks);
+        Assert.Same(target, result.FocusTarget);
         Assert.Equal("image.png", result.ImageBlock.AssetFileName);
         Assert.Equal("C:\\assets\\image.png", result.ImageBlock.AssetPath);
         Assert.Equal(300, result.ImageBlock.DisplayWidth);
         Assert.Equal(2, result.ImageBlock.AspectRatio);
         Assert.Empty(target.Text);
-        Assert.Empty(result.TrailingTextBlock.Text);
+        Assert.Empty(result.FocusTarget.Text);
         Assert.Null(_editor.SelectedImageBlock);
         Assert.Equal(0, mutations);
 
@@ -147,7 +148,7 @@ public sealed class ActiveNoteEditorTests
     }
 
     [Fact]
-    public void InsertImageAfterBlock_PreservesLinkListOrderTrailingTextAndExistingSelection()
+    public void InsertImageAfterBlock_PreservesExistingTextOrderAndSelection()
     {
         var first = new TextNoteBlock { Text = "before" };
         var links = new LinkListNoteBlock();
@@ -166,9 +167,9 @@ public sealed class ActiveNoteEditorTests
 
         Assert.NotNull(result);
         Assert.Equal(
-            [first, links, result.ImageBlock, result.TrailingTextBlock, selected, last],
+            [first, links, result.ImageBlock, selected, last],
             note.Blocks);
-        Assert.Empty(result.TrailingTextBlock.Text);
+        Assert.Same(last, result.FocusTarget);
         Assert.Same(selected, _editor.SelectedImageBlock);
         Assert.True(selected.IsSelected);
         Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
@@ -194,8 +195,8 @@ public sealed class ActiveNoteEditorTests
 
         Assert.NotNull(result);
         Assert.Equal("before ", target.Text);
-        Assert.Equal("after", result.TrailingTextBlock.Text);
-        Assert.Equal([target, result.ImageBlock, result.TrailingTextBlock], note.Blocks);
+        Assert.Equal("after", result.FocusTarget.Text);
+        Assert.Equal([target, result.ImageBlock, result.FocusTarget], note.Blocks);
 
         Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
         _editor.RestoreBlocks(note, snapshot.Blocks, _ => { });
@@ -254,7 +255,9 @@ public sealed class ActiveNoteEditorTests
         Assert.NotNull(result);
         Assert.Equal(290, image.DisplayWidth);
         Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
-        Assert.Equal(320, Assert.IsType<ImageNoteBlock>(Assert.Single(snapshot.Blocks)).DisplayWidth);
+        Assert.Collection(snapshot.Blocks,
+            block => Assert.Equal(320, Assert.IsType<ImageNoteBlock>(block).DisplayWidth),
+            block => Assert.Empty(Assert.IsType<TextNoteBlock>(block).Text));
         Assert.False(_editor.TryPopUndoSnapshot(note, out _));
     }
 
@@ -306,7 +309,9 @@ public sealed class ActiveNoteEditorTests
             block.Items.Select(item => item.DisplayName));
         Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
         _editor.RestoreBlocks(note, snapshot.Blocks, _ => { });
-        Assert.Empty(Assert.IsType<LinkListNoteBlock>(Assert.Single(note.Blocks)).Items);
+        Assert.Collection(note.Blocks,
+            block => Assert.Empty(Assert.IsType<LinkListNoteBlock>(block).Items),
+            block => Assert.Empty(Assert.IsType<TextNoteBlock>(block).Text));
     }
 
     [Fact]
@@ -329,7 +334,9 @@ public sealed class ActiveNoteEditorTests
         Assert.Equal(secondId, second.Id);
         Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
         _editor.RestoreBlocks(note, snapshot.Blocks, _ => { });
-        var restored = Assert.IsType<LinkListNoteBlock>(Assert.Single(note.Blocks));
+        Assert.Collection(note.Blocks, actual => Assert.IsType<LinkListNoteBlock>(actual),
+            actual => Assert.Empty(Assert.IsType<TextNoteBlock>(actual).Text));
+        var restored = Assert.IsType<LinkListNoteBlock>(note.Blocks[0]);
         Assert.Equal(["https://first.test", "https://second.test"], restored.Items.Select(item => item.Url));
         Assert.Equal(secondId, restored.Items[1].Id);
     }
@@ -375,7 +382,9 @@ public sealed class ActiveNoteEditorTests
         _editor.CommitLinkTokens(bBlock, "https://b.test", 30);
 
         Assert.True(_editor.TryPopUndoSnapshot(a, out var aSnapshot));
-        Assert.Empty(Assert.IsType<LinkListNoteBlock>(Assert.Single(aSnapshot.Blocks)).Items);
+        Assert.Collection(aSnapshot.Blocks,
+            block => Assert.Empty(Assert.IsType<LinkListNoteBlock>(block).Items),
+            block => Assert.Empty(Assert.IsType<TextNoteBlock>(block).Text));
         Assert.True(_editor.HasUndoHistory(b));
         Assert.Equal("https://b.test", Assert.Single(bBlock.Items).Url);
     }
@@ -690,7 +699,7 @@ public sealed class ActiveNoteEditorTests
     }
 
     [Fact]
-    public void InsertTextBlock_EmptyNoteAppendsInitializedBlockAndOneUndoSnapshot()
+    public void InsertTextBlock_ReplacesAutomaticPlaceholderWithOneUndoSnapshot()
     {
         var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [] };
         _editor.Subscribe(note);
@@ -723,7 +732,7 @@ public sealed class ActiveNoteEditorTests
 
         Assert.Equal([first, beforeImage!.Block, image, beforeLinks!.Block, links, last, atEnd!.Block], note.Blocks);
         Assert.True(beforeImage.Block.PreserveBoundaryBefore);
-        Assert.False(beforeLinks.Block.PreserveBoundaryBefore);
+        Assert.True(beforeLinks.Block.PreserveBoundaryBefore);
         Assert.True(atEnd.Block.PreserveBoundaryBefore);
         Assert.Equal(first.Id, note.Blocks[0].Id);
         Assert.Equal(image.Id, note.Blocks[2].Id);
@@ -796,8 +805,10 @@ public sealed class ActiveNoteEditorTests
 
         var result = _editor.DeleteTextBlock(note, target, 30);
 
-        Assert.Null(result!.FocusTarget);
-        Assert.Equal([image, links], note.Blocks);
+        var replacement = Assert.Single(note.Blocks.OfType<TextNoteBlock>());
+        Assert.Same(replacement, result!.FocusTarget);
+        Assert.Empty(replacement.Text);
+        Assert.Equal([image, links, replacement], note.Blocks);
         Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
         _editor.RestoreBlocks(note, snapshot.Blocks, _ => { });
         Assert.Equal([image.Id, target.Id, links.Id], note.Blocks.Select(block => block.Id));
@@ -818,6 +829,50 @@ public sealed class ActiveNoteEditorTests
         Assert.Same(first, result.FocusTarget);
         Assert.Equal([first, image], note.Blocks);
         Assert.Null(_editor.MergeEmptyTextBlockBackward(note, first, 30));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RemoveOnlyTextBlock_ReturnsEmptySubscribedReplacementAndSupportsUndo(bool backspace)
+    {
+        var original = new TextNoteBlock { Text = backspace ? "" : "deleted text" };
+        var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [original] };
+        _editor.Subscribe(note);
+
+        var result = backspace
+            ? _editor.MergeEmptyTextBlockBackward(note, original, 30)
+            : _editor.DeleteTextBlock(note, original, 30);
+
+        var replacement = Assert.IsType<TextNoteBlock>(Assert.Single(note.Blocks));
+        Assert.NotSame(original, replacement);
+        Assert.Empty(replacement.Text);
+        Assert.Same(replacement, result!.FocusTarget);
+        Assert.True(_editor.TryGetOwner(replacement, out var owner));
+        Assert.Same(note, owner);
+        Assert.False(_editor.TryGetOwner(original, out _));
+        Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
+        Assert.Equal(original.Id, Assert.Single(snapshot.Blocks).Id);
+        Assert.False(_editor.HasUndoHistory(note));
+        _editor.RestoreBlocks(note, snapshot.Blocks, _ => { });
+        Assert.Equal(original.Text, Assert.IsType<TextNoteBlock>(Assert.Single(note.Blocks)).Text);
+    }
+
+    [Fact]
+    public void BackspaceLastTextAfterNonTextBlocks_ReturnsReplacementWithoutDeletingOtherBlocks()
+    {
+        var image = new ImageNoteBlock();
+        var links = new LinkListNoteBlock();
+        var empty = new TextNoteBlock();
+        var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [image, links, empty] };
+        _editor.Subscribe(note);
+
+        var result = _editor.MergeEmptyTextBlockBackward(note, empty, 30);
+
+        var replacement = Assert.Single(note.Blocks.OfType<TextNoteBlock>());
+        Assert.Same(replacement, result!.FocusTarget);
+        Assert.Empty(replacement.Text);
+        Assert.Equal([image, links, replacement], note.Blocks);
     }
 
     [Fact]

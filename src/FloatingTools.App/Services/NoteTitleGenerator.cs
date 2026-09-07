@@ -6,7 +6,7 @@ public static class NoteTitleGenerator
 {
     public const string UntitledTitle = "Untitled note";
     public const int MaximumTitleLength = 40;
-    public const int MaximumWords = 4;
+    public const int MaximumWords = 3;
 
     public static string Generate(string? content)
     {

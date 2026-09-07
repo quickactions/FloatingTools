@@ -17,6 +17,47 @@ namespace FloatingTools.Tests.Views;
 [Collection(FloatingTools.Tests.WpfResourceCollection.Name)]
 public sealed class NotesInsertionZoneFocusIntegrationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RemovingFinalTextEditor_FocusesReplacement(bool backspace)
+        => RunSta(() =>
+        {
+            var text = new TextNoteBlock { Text = "delete me" };
+            var vm = CreateViewModel(text);
+            if (backspace) text.Text = string.Empty;
+            var view = new NotesToolView { DataContext = vm };
+            var window = Show(view);
+            try
+            {
+                var editor = FindDescendant<TextBox>(view, e => Equals(e.Tag, text.Id))!;
+                editor.Focus();
+                if (backspace)
+                {
+                    editor.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,
+                        PresentationSource.FromVisual(editor), Environment.TickCount, Key.Back)
+                    { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+                }
+                else
+                {
+                    var menu = editor.ContextMenu!;
+                    menu.PlacementTarget = editor;
+                    var delete = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Delete block"));
+                    delete.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                }
+                window.UpdateLayout();
+                DrainDispatcher();
+                var replacement = Assert.Single(vm.ActiveBlocks.OfType<TextNoteBlock>());
+                Assert.NotSame(text, replacement);
+                Assert.Empty(replacement.Text);
+                var replacementEditor = FindDescendant<TextBox>(view, e => Equals(e.Tag, replacement.Id));
+                Assert.NotNull(replacementEditor);
+                Assert.True(replacementEditor.IsKeyboardFocusWithin);
+                Assert.Equal(0, replacementEditor.CaretIndex);
+            }
+            finally { window.Close(); }
+        });
+
     [Fact]
     public void InsertionZoneClick_FocusesTheResolvedEditorWithoutChangingTheDocument()
         => RunSta(() =>
@@ -87,7 +128,7 @@ public sealed class NotesInsertionZoneFocusIntegrationTests
                     DrainDispatcher();
 
                     Assert.Equal(noTargetBlocksBefore, noTargetViewModel.ActiveBlocks);
-                    Assert.Null(InsertionZoneFocusResolver.Resolve(
+                    Assert.Same(Assert.Single(noTargetViewModel.ActiveBlocks.OfType<TextNoteBlock>()), InsertionZoneFocusResolver.Resolve(
                         noTargetViewModel.ActiveBlocks,
                         noTargetViewModel.ActiveBlocks.Count));
                 }

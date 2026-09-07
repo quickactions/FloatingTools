@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using FloatingTools.App.Models;
 using FloatingTools.App.Services;
 
@@ -13,6 +14,17 @@ namespace FloatingTools.App.Notes;
 /// </summary>
 public sealed class ActiveNoteEditor
 {
+    // Runtime identity only: persisted empty blocks must never be guessed to be placeholders.
+    // Weak keys also allow discarded undo snapshots to release their placeholder state.
+    private static readonly ConditionalWeakTable<TextNoteBlock, object> AutomaticPlaceholders = new();
+
+    internal static TextNoteBlock CreateAutomaticTextBlock()
+    {
+        var block = new TextNoteBlock();
+        AutomaticPlaceholders.Add(block, new object());
+        return block;
+    }
+
     private const double MinimumImageWidth = 60;
     private const double DefaultAvailableImageWidth = 560;
     private readonly TimeSpan _debounceDelay;
@@ -94,13 +106,31 @@ public sealed class ActiveNoteEditor
             index++;
         }
 
-        return changed;
+        return EnsureTextBlock(note) || changed;
+    }
+
+    private static bool EnsureTextBlock(NoteDocument note)
+    {
+        if (note.Blocks.OfType<TextNoteBlock>().Any()) return false;
+
+        // Keep every editable note usable, including image/link-only documents.
+        // Mutation callers normalize inside their existing undo/change-tracking boundary.
+        note.Blocks.Add(CreateAutomaticTextBlock());
+        return true;
     }
 
     public List<NoteBlock> CloneBlocks(IEnumerable<NoteBlock> blocks) =>
         blocks.Select(CloneBlock).ToList();
 
-    public NoteBlock CloneBlock(NoteBlock block) => block switch
+    public NoteBlock CloneBlock(NoteBlock block)
+    {
+        var clone = CloneBlockCore(block);
+        if (block is TextNoteBlock text && AutomaticPlaceholders.TryGetValue(text, out _))
+            AutomaticPlaceholders.Add((TextNoteBlock)clone, new object());
+        return clone;
+    }
+
+    private static NoteBlock CloneBlockCore(NoteBlock block) => block switch
     {
         TextNoteBlock text => new TextNoteBlock
         {
@@ -145,13 +175,21 @@ public sealed class ActiveNoteEditor
         if (index < 0) return null;
 
         var evictedAssets = PushUndoSnapshot(note, maximumUndoOperations);
-        var block = new TextNoteBlock
-        {
-            PreserveBoundaryBefore = index > 0 && note.Blocks[index - 1] is TextNoteBlock
-        };
+        var block = new TextNoteBlock();
 
         using (SuppressChangeTracking())
         {
+            var texts = note.Blocks.OfType<TextNoteBlock>().ToArray();
+            if (texts.Length == 1 && texts[0].Text.Length == 0
+                && AutomaticPlaceholders.TryGetValue(texts[0], out _))
+            {
+                var placeholderIndex = note.Blocks.IndexOf(texts[0]);
+                note.Blocks.RemoveAt(placeholderIndex);
+                if (placeholderIndex < index) index--;
+            }
+
+            // Keep the explicit boundary even if intervening images/links are later deleted.
+            block.PreserveBoundaryBefore = index > 0;
             if (index < note.Blocks.Count && note.Blocks[index] is TextNoteBlock next)
             {
                 next.PreserveBoundaryBefore = true;
@@ -227,18 +265,32 @@ public sealed class ActiveNoteEditor
         var before = target.Text[..start];
         var after = target.Text[(start + length)..];
         var imageBlock = CreateImageBlock(image, availableWidth);
-        var afterBlock = new TextNoteBlock { Text = after };
+        var focusTarget = target;
         var index = note.Blocks.IndexOf(target);
         var evictedAssets = PushUndoSnapshot(note, maximumUndoOperations);
 
         using (SuppressChangeTracking())
         {
-            target.Text = before;
-            note.Blocks.Insert(index + 1, imageBlock);
-            note.Blocks.Insert(index + 2, afterBlock);
+            if (before.Length == 0 && after.Length > 0)
+            {
+                target.Text = after;
+                note.Blocks.Insert(index, imageBlock);
+            }
+            else
+            {
+                target.Text = before;
+                note.Blocks.Insert(index + 1, imageBlock);
+                // A nonempty suffix is document content, not an automatic editor.
+                if (after.Length > 0)
+                {
+                    focusTarget = new TextNoteBlock { Text = after };
+                    note.Blocks.Insert(index + 2, focusTarget);
+                }
+            }
+            EnsureTextBlock(note);
         }
 
-        return new ImageInsertionResult(note, imageBlock, afterBlock, evictedAssets);
+        return new ImageInsertionResult(note, imageBlock, focusTarget, evictedAssets);
     }
 
     public ImageInsertionResult? InsertImageAfterBlock(
@@ -251,16 +303,17 @@ public sealed class ActiveNoteEditor
         if (!TryGetOwner(target, out var owner) || !ReferenceEquals(owner, note)) return null;
 
         var imageBlock = CreateImageBlock(image, availableWidth);
-        var afterBlock = new TextNoteBlock();
         var index = note.Blocks.IndexOf(target);
         var evictedAssets = PushUndoSnapshot(note, maximumUndoOperations);
         using (SuppressChangeTracking())
         {
             note.Blocks.Insert(index + 1, imageBlock);
-            note.Blocks.Insert(index + 2, afterBlock);
+            EnsureTextBlock(note);
         }
 
-        return new ImageInsertionResult(note, imageBlock, afterBlock, evictedAssets);
+        var focusTarget = note.Blocks.Skip(index + 2).OfType<TextNoteBlock>().FirstOrDefault()
+            ?? note.Blocks.OfType<TextNoteBlock>().Last();
+        return new ImageInsertionResult(note, imageBlock, focusTarget, evictedAssets);
     }
 
     public ImageDeletionResult? DeleteImage(
@@ -562,6 +615,8 @@ public sealed class ActiveNoteEditor
     {
         if (!_subscribedNotes.Add(note)) return;
 
+        // Repair loaded notes before subscribing, without retitling or creating undo history.
+        EnsureTextBlock(note);
         note.PropertyChanged += OnNoteChanged;
         note.Blocks.CollectionChanged += OnBlocksCollectionChanged;
         foreach (var block in note.Blocks) SubscribeBlock(note, block);
@@ -623,6 +678,11 @@ public sealed class ActiveNoteEditor
 
     private void OnBlockChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Once used for text, a placeholder becomes an ordinary user block even if later cleared.
+        if (sender is TextNoteBlock { Text.Length: > 0 } text
+            && e.PropertyName == nameof(TextNoteBlock.Text))
+            AutomaticPlaceholders.Remove(text);
+
         if (IsChangeTrackingSuppressed
             || sender is not NoteBlock block
             || !TryGetOwner(block, out var note)) return;
@@ -668,7 +728,7 @@ public sealed record ImageBlockData(
 public sealed record ImageInsertionResult(
     NoteDocument Note,
     ImageNoteBlock ImageBlock,
-    TextNoteBlock TrailingTextBlock,
+    TextNoteBlock FocusTarget,
     string[] EvictedAssets);
 public sealed record ImageDeletionResult(string AssetFileName, string[] EvictedAssets);
 public sealed record ImageResizeCommitResult(string[] EvictedAssets);

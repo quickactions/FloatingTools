@@ -15,6 +15,7 @@
              PreviewDrop="NotesToolView_OnPreviewDrop">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:NoteTitleDirectionConverter x:Key="NoteTitleDirectionConverter" />
         <converters:LocalImagePathConverter x:Key="LocalImagePathConverter" />
         <converters:ResponsiveImageDimensionConverter x:Key="ResponsiveImageDimensionConverter" />
 
@@ -48,6 +49,7 @@
         <Style x:Key="NotesTextActionStyle"
                TargetType="{x:Type Button}"
                BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
             <Setter Property="Padding" Value="{StaticResource FloatingToolsSpacingActionButton}" />
             <Setter Property="Template">
@@ -57,7 +59,7 @@
                                 Background="{TemplateBinding Background}"
                                 CornerRadius="{StaticResource FloatingToolsRadiusControl}"
                                 Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -84,7 +86,8 @@
                BasedOn="{StaticResource FloatingToolsSharedToolHeaderStyle}">
             <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
             <Setter Property="Padding" Value="{StaticResource FloatingToolsSpacingActionButton}" />
-            <Setter Property="TitleHorizontalAlignment" Value="Left" />
+            <Setter Property="TitleHorizontalAlignment" Value="Stretch" />
+            <Setter Property="TitleMargin" Value="0,0,20,0" />
             <Setter Property="ChevronTemplate" Value="{StaticResource NotesToolHeaderChevronTemplate}" />
             <Setter Property="ChevronBrush" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
             <Style.Triggers>
@@ -274,7 +277,7 @@
                     SelectionOpacity="0.65"
                     IsInactiveSelectionHighlightEnabled="True"
                     BorderThickness="0"
-                    HorizontalContentAlignment="Stretch"
+                    HorizontalContentAlignment="Left"
                     VerticalContentAlignment="Top"
                     FontFamily="Segoe UI"
                     FontSize="15"
@@ -408,6 +411,8 @@
                                           Margin="6,5"
                                           Style="{StaticResource NotesToolHeaderStyle}"
                                           Title="{Binding ActiveTitle}"
+                                          TitleFlowDirection="{Binding ActiveTitle, Converter={StaticResource NoteTitleDirectionConverter}}"
+                                          TitleTextAlignment="{Binding ActiveTitle, Converter={StaticResource NoteTitleDirectionConverter}}"
                                           IsMenuOpen="{Binding IsMenuOpen}"
                                           ExpandedContentRoot="{Binding ElementName=NotesHeaderExpandedContent}"
                                           Command="{Binding ToggleMenuCommand}"
@@ -560,6 +565,8 @@
                                                     </Style>
                                                 </Button.Style>
                                                 <TextBlock Text="{Binding Title}"
+                                                           FlowDirection="{Binding Title, Converter={StaticResource NoteTitleDirectionConverter}}"
+                                                           TextAlignment="{Binding Title, Converter={StaticResource NoteTitleDirectionConverter}}"
                                                            TextTrimming="CharacterEllipsis"
                                                            HorizontalAlignment="Stretch" />
                                             </Button>

@@ -71,15 +71,16 @@ public sealed class LinkListNoteBlockTests
     }
 
     [Fact]
-    public async Task EmptyDraftBackspace_DeletesItemsThenTheEntireLinkListWithoutCreatingText()
+    public async Task EmptyDraftBackspace_DeletesItemsThenTheEntireLinkListKeepingExistingEditor()
     {
         var (vm, _) = await CreateAsync();
         var initialText = Assert.Single(vm.ActiveBlocks.OfType<TextNoteBlock>());
         await vm.DeleteTextBlockAsync(initialText);
-        Assert.Empty(vm.ActiveBlocks);
+        var replacement = Assert.IsType<TextNoteBlock>(Assert.Single(vm.ActiveBlocks));
+        Assert.Empty(replacement.Text);
 
         var block = Assert.IsType<LinkListNoteBlock>(await vm.InsertLinkListBlockBeforeAsync(null));
-        Assert.Collection(vm.ActiveBlocks, actual => Assert.Same(block, actual));
+        Assert.Equal([replacement, block], vm.ActiveBlocks);
         vm.CommitLinkTokens(block, "https://one.test https://two.test");
 
         Assert.True(await vm.DeleteLastLinkItemOrBlockAsync(block));
@@ -88,7 +89,7 @@ public sealed class LinkListNoteBlockTests
         Assert.Empty(block.Items);
         Assert.Contains(block, vm.ActiveBlocks);
         Assert.True(await vm.DeleteLastLinkItemOrBlockAsync(block));
-        Assert.Empty(vm.ActiveBlocks);
+        Assert.Same(replacement, Assert.Single(vm.ActiveBlocks));
     }
 
     [Fact]

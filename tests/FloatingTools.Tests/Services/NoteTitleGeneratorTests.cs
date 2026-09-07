@@ -9,9 +9,9 @@ public sealed class NoteTitleGeneratorTests
         Assert.Equal("Untitled note", NoteTitleGenerator.Generate(" \r\n "));
 
     [Theory]
-    [InlineData("one two three four five six", "one two three four")]
-    [InlineData("לסיים את הפרויקט היום בבוקר מוקדם", "לסיים את הפרויקט היום")]
-    public void Generate_UsesFirstFourWhitespaceNormalizedWords(string content, string expected) =>
+    [InlineData("one two three four five six", "one two three")]
+    [InlineData("לסיים את הפרויקט היום בבוקר מוקדם", "לסיים את הפרויקט")]
+    public void Generate_UsesFirstThreeWhitespaceNormalizedWords(string content, string expected) =>
         Assert.Equal(expected, NoteTitleGenerator.Generate(content));
 
     [Fact]

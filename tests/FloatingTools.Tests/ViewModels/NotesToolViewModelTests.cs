@@ -59,7 +59,7 @@ public sealed class NotesToolViewModelTests
         Assert.False(viewModel.IsTemporary);
         Assert.Contains(viewModel.ActiveNote!, viewModel.Notes);
         Assert.Contains(store.State.Notes, note => TextOf(note) == viewModel.Content);
-        Assert.Equal("temporary thought worth keeping", viewModel.ActiveTitle);
+        Assert.Equal("temporary thought worth", viewModel.ActiveTitle);
     }
 
     [Fact]
@@ -143,9 +143,9 @@ public sealed class NotesToolViewModelTests
     }
 
     [Theory]
-    [InlineData("Algorithms exam review tomorrow please", "Algorithms exam review tomorrow")]
-    [InlineData("  לסיים   את הפרויקט\nהיום בבוקר  ", "לסיים את הפרויקט היום")]
-    public async Task AutomaticTitle_UsesFirstFourWordsAndTracksContent(string content, string expected)
+    [InlineData("Algorithms exam review tomorrow please", "Algorithms exam review")]
+    [InlineData("  לסיים   את הפרויקט\nהיום בבוקר  ", "לסיים את הפרויקט")]
+    public async Task AutomaticTitle_UsesFirstThreeWordsAndTracksContent(string content, string expected)
     {
         var (viewModel, _) = await CreateAsync();
         viewModel.Content = content;
@@ -162,13 +162,30 @@ public sealed class NotesToolViewModelTests
     {
         var (viewModel, store) = await CreateAsync();
         viewModel.BeginRenameCommand.Execute(viewModel.ActiveNote);
-        viewModel.RenameText = "My fixed title";
+        viewModel.RenameText = "My fixed four word title";
         await viewModel.SaveRenameCommand.ExecuteAsync(null);
         viewModel.Content = "content that would produce another title";
         await viewModel.SaveNowAsync();
 
-        Assert.Equal("My fixed title", viewModel.ActiveTitle);
-        Assert.Equal("My fixed title", Assert.Single(store.State.Notes).Title);
+        Assert.Equal("My fixed four word title", viewModel.ActiveTitle);
+        Assert.Equal("My fixed four word title", Assert.Single(store.State.Notes).Title);
+    }
+
+    [Fact]
+    public async Task StoredFourWordAutoTitle_IsPreservedUntilContentIsEdited()
+    {
+        var note = Note("one two three four", "one two three four five", DateTimeOffset.UtcNow);
+        note.HasManualTitle = false;
+        var store = new RecordingNotesStore(new NotesStorageState { Notes = [note], LastOpenedNoteId = note.Id });
+        var viewModel = new NotesToolViewModel(store, TimeSpan.Zero);
+        await viewModel.InitializeAsync();
+        Assert.Equal("one two three four", viewModel.ActiveTitle);
+        Assert.Equal("one two three four", Assert.Single(store.State.Notes).Title);
+
+        viewModel.Content = "one two three four five edited";
+        await viewModel.SaveNowAsync();
+        Assert.Equal("one two three", viewModel.ActiveTitle);
+        Assert.Equal("one two three", Assert.Single(store.State.Notes).Title);
     }
 
     [Fact]
@@ -267,7 +284,7 @@ public sealed class NotesToolViewModelTests
 
         await viewModel.KeepTemporaryNoteCommand.ExecuteAsync(null);
 
-        Assert.Equal("Project ideas for FloatingTools", viewModel.ActiveTitle);
+        Assert.Equal("Project ideas for", viewModel.ActiveTitle);
         Assert.Same(viewModel.ActiveNote, Assert.Single(viewModel.Notes));
         Assert.Equal(viewModel.ActiveNote!.Id, Assert.Single(store.State.Notes).Id);
         Assert.Equal(writesBeforeKeep + 1, store.SaveCount);
