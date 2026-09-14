@@ -73,26 +73,27 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
     }
 
     [Fact]
-    public void ExtractTextHotkey_DoesNotSwitchToTranslationWhenTheCaptureWasCancelled()
+    public void ExtractTextHotkey_OnlyShowsTranslationWhenCaptureAppliedUsefulText()
     {
-        // Screen capture hides every visible window and restores them, so
-        // force-selecting Translation after a cancelled capture drops the user
-        // out of the tool they were using and reads as "hide/show lost my tool".
         var code = ReadWindowCoordinatorSource();
         var body = ExtractMethodBody(code, "private async void TriggerExtractTextFromScreen()");
 
         var guardIndex = body.IndexOf(
-            "ScreenTextCaptureStatus.Cancelled", StringComparison.Ordinal);
+            "LastCaptureProducedText", StringComparison.Ordinal);
         var selectIndex = body.IndexOf(
             "_viewModel.SelectToolCommand.Execute(ToolId.Translation)",
             StringComparison.Ordinal);
 
-        Assert.True(guardIndex >= 0, "Cancelled captures must be guarded.");
-        Assert.True(selectIndex >= 0, "A completed capture still opens Translation.");
+        Assert.True(guardIndex >= 0, "Captures without applied text must be guarded.");
+        Assert.True(selectIndex >= 0, "A useful capture still opens Translation.");
         Assert.True(
             guardIndex < selectIndex,
-            "The cancellation guard must run before the tool switch.");
-        Assert.Contains("LastCaptureStatus", body);
+            "The useful-text guard must run before the tool switch.");
+        Assert.DoesNotContain("LastCaptureStatus", body);
+        Assert.Contains("if (_visibilitySession.IsHidden)", body);
+        Assert.Contains("_capturePanelWasVisible = true;", body);
+        Assert.Contains("if (!_restoreCapturePanelOnNormal)", body);
+        Assert.Contains("ShowPanel();", body);
     }
 
     [Fact]

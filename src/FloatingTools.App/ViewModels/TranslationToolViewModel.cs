@@ -190,6 +190,8 @@ public partial class TranslationToolViewModel : ObservableObject
     /// </summary>
     public ScreenTextCaptureStatus? LastCaptureStatus { get; private set; }
 
+    public bool LastCaptureProducedText { get; private set; }
+
     private async Task CaptureTextAsync()
     {
         if (IsCapturingText)
@@ -197,6 +199,7 @@ public partial class TranslationToolViewModel : ObservableObject
             return;
         }
 
+        LastCaptureProducedText = false;
         IsCapturingText = true;
         CaptureMessage = null;
         ErrorMessage = null;
@@ -210,6 +213,7 @@ public partial class TranslationToolViewModel : ObservableObject
                 case ScreenTextCaptureStatus.Success
                     when !string.IsNullOrWhiteSpace(result.Text):
                     InputText = result.Text;
+                    LastCaptureProducedText = true;
                     ComposerFocusRequested?.Invoke(this, EventArgs.Empty);
                     break;
                 case ScreenTextCaptureStatus.NoText:

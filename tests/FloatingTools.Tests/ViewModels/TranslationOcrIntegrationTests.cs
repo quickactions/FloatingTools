@@ -18,6 +18,7 @@ public sealed class TranslationOcrIntegrationTests
         await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
 
         Assert.Equal("FIRST LINE SECOND LINE", context.ViewModel.InputText);
+        Assert.True(context.ViewModel.LastCaptureProducedText);
         Assert.Equal(0, translation.CallCount);
         Assert.Empty(context.ViewModel.Items);
         Assert.Empty(await context.History.LoadAsync());
@@ -41,7 +42,7 @@ public sealed class TranslationOcrIntegrationTests
     [InlineData(ScreenTextCaptureStatus.Cancelled)]
     [InlineData(ScreenTextCaptureStatus.NoText)]
     [InlineData(ScreenTextCaptureStatus.Failed)]
-    public async Task Capture_RecordsItsOutcomeSoCallersCanTellCancellationApart(
+    public async Task Capture_RecordsItsOutcomeForExistingStatusConsumers(
         ScreenTextCaptureStatus status)
     {
         var context = await CreateContextAsync(
@@ -52,8 +53,6 @@ public sealed class TranslationOcrIntegrationTests
 
         await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
 
-        // The global Ctrl+Alt+T handler reads this to decide whether to pull the
-        // user into Translation; a cancelled capture must stay distinguishable.
         Assert.Equal(status, context.ViewModel.LastCaptureStatus);
     }
 
@@ -67,6 +66,60 @@ public sealed class TranslationOcrIntegrationTests
         await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
 
         Assert.Equal(ScreenTextCaptureStatus.Success, context.ViewModel.LastCaptureStatus);
+        Assert.True(context.ViewModel.LastCaptureProducedText);
+    }
+
+    [Theory]
+    [InlineData(ScreenTextCaptureStatus.Success, "")]
+    [InlineData(ScreenTextCaptureStatus.Success, "   \t")]
+    [InlineData(ScreenTextCaptureStatus.NoText, null)]
+    [InlineData(ScreenTextCaptureStatus.Failed, null)]
+    [InlineData(ScreenTextCaptureStatus.Cancelled, null)]
+    public async Task CaptureWithoutAppliedText_DoesNotReportProducedText(
+        ScreenTextCaptureStatus status,
+        string? text)
+    {
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            new StubScreenTextCaptureService(new ScreenTextCaptureResult(status, text)));
+
+        await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+
+        Assert.False(context.ViewModel.LastCaptureProducedText);
+    }
+
+    [Fact]
+    public async Task CaptureException_DoesNotReportProducedText()
+    {
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            new ThrowingScreenTextCaptureService());
+
+        await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+
+        Assert.False(context.ViewModel.LastCaptureProducedText);
+        Assert.Equal(ScreenTextCaptureStatus.Failed, context.ViewModel.LastCaptureStatus);
+    }
+
+    [Fact]
+    public async Task LaterCapture_ResetsProducedTextBeforeAwaitingItsResult()
+    {
+        var pending = new TaskCompletionSource<ScreenTextCaptureResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var capture = new SequenceScreenTextCaptureService(
+            Task.FromResult(ScreenTextCaptureResult.Success("FIRST")),
+            pending.Task);
+        var context = await CreateContextAsync(new RecordingTranslationService(), capture);
+
+        await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+        Assert.True(context.ViewModel.LastCaptureProducedText);
+
+        var laterCapture = context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+        Assert.False(context.ViewModel.LastCaptureProducedText);
+        pending.SetResult(ScreenTextCaptureResult.Cancelled());
+        await laterCapture;
+
+        Assert.False(context.ViewModel.LastCaptureProducedText);
     }
 
     [Theory]
@@ -178,6 +231,22 @@ public sealed class TranslationOcrIntegrationTests
         public Task<ScreenTextCaptureResult> CaptureTextAsync(
             CancellationToken cancellationToken = default) =>
             Task.FromResult(result);
+    }
+
+    private sealed class ThrowingScreenTextCaptureService : IScreenTextCaptureService
+    {
+        public Task<ScreenTextCaptureResult> CaptureTextAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Capture failed.");
+    }
+
+    private sealed class SequenceScreenTextCaptureService(
+        params Task<ScreenTextCaptureResult>[] results) : IScreenTextCaptureService
+    {
+        private int _nextResult;
+
+        public Task<ScreenTextCaptureResult> CaptureTextAsync(
+            CancellationToken cancellationToken = default) => results[_nextResult++];
     }
 
     private sealed class RecordingTranslationService : ITranslationService

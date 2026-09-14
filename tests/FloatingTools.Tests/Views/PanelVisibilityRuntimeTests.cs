@@ -291,6 +291,67 @@ public sealed class PanelVisibilityRuntimeTests
     }
 
     [Theory]
+    [InlineData("Hello from OCR", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("   \t", false)]
+    public void OcrShortcutWithClosedPanel_OnlyUsefulTextOpensTranslation(
+        string? capturedText,
+        bool shouldOpenTranslation)
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, capturedText);
+            harness.ClosePanel();
+
+            harness.RunCapture();
+
+            Assert.Equal(shouldOpenTranslation, harness.Panel.IsVisible);
+            Assert.Equal(
+                shouldOpenTranslation ? ToolId.Translation : ToolId.Calendar,
+                harness.ViewModel.ActiveTool);
+            Assert.Equal(
+                shouldOpenTranslation ? "Hello from OCR" : string.Empty,
+                harness.Translation.InputText);
+        });
+
+    [Fact]
+    public void OcrShortcutWithVisibleOtherTool_KeepsPanelOpenAndShowsCapturedText()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.QuickChat, "Visible capture");
+
+            harness.RunCapture();
+
+            Assert.True(harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Translation, harness.ViewModel.ActiveTool);
+            Assert.Equal("Visible capture", harness.Translation.InputText);
+        });
+
+    [Fact]
+    public void OcrShortcutWhileApplicationHidden_PreservesTranslationForNextRestore()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, "Hidden capture");
+            harness.ToggleApplicationVisibility();
+            Assert.Equal(WindowState.Minimized, harness.Toolbar.WindowState);
+            Assert.False(harness.Panel.IsVisible);
+
+            harness.RunCapture();
+
+            Assert.Equal(WindowState.Minimized, harness.Toolbar.WindowState);
+            Assert.False(harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Translation, harness.ViewModel.ActiveTool);
+            Assert.Equal("Hidden capture", harness.Translation.InputText);
+
+            harness.ToggleApplicationVisibility();
+
+            Assert.Equal(WindowState.Normal, harness.Toolbar.WindowState);
+            Assert.True(harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Translation, harness.ViewModel.ActiveTool);
+            Assert.Equal("Hidden capture", harness.Translation.InputText);
+        });
+
+    [Theory]
     [InlineData(false, true, "success")]
     [InlineData(false, false, "success")]
     [InlineData(true, true, "success")]
@@ -442,11 +503,168 @@ public sealed class PanelVisibilityRuntimeTests
             => Task.FromResult(new CapturedScreenImage([1]));
     }
 
-    private sealed class FakeOcr : ILocalOcrService
+    private sealed class FakeOcr(string text = "Hello world") : ILocalOcrService
     {
         public Task<string> RecognizeEnglishAsync(CapturedScreenImage image, CancellationToken cancellationToken = default)
-            => Task.FromResult("Hello world");
+            => Task.FromResult(text);
         public void Dispose() { }
+    }
+
+    private sealed class ShortcutHarness : IDisposable
+    {
+        private readonly string _settingsPath;
+        private readonly Window? _originalMainWindow;
+        private readonly PanelFixture _fixture;
+        private readonly WindowCoordinator _coordinator;
+        private readonly GlobalHotkeyService _hotkeys;
+        private readonly ThemeService _theme;
+        private readonly ControlledOverlay _overlay;
+        private readonly ScreenTextCaptureService _capture;
+        private readonly string? _capturedText;
+
+        private ShortcutHarness(
+            string settingsPath,
+            Window? originalMainWindow,
+            PanelFixture fixture,
+            WindowCoordinator coordinator,
+            GlobalHotkeyService hotkeys,
+            ThemeService theme,
+            ToolbarWindow toolbar,
+            FloatingToolbarViewModel viewModel,
+            ControlledOverlay overlay,
+            ScreenTextCaptureService capture,
+            string? capturedText)
+        {
+            _settingsPath = settingsPath;
+            _originalMainWindow = originalMainWindow;
+            _fixture = fixture;
+            _coordinator = coordinator;
+            _hotkeys = hotkeys;
+            _theme = theme;
+            Toolbar = toolbar;
+            ViewModel = viewModel;
+            _overlay = overlay;
+            _capture = capture;
+            _capturedText = capturedText;
+        }
+
+        public ToolbarWindow Toolbar { get; }
+        public PanelWindow Panel => _fixture.Window;
+        public FloatingToolbarViewModel ViewModel { get; }
+        public TranslationToolViewModel Translation => _fixture.Translation;
+
+        public static ShortcutHarness Create(ToolId initialTool, string? capturedText)
+        {
+            var viewModel = new FloatingToolbarViewModel(initialTool);
+            viewModel.SelectToolCommand.Execute(initialTool);
+            var settingsPath = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(), Guid.NewGuid() + ".json");
+            var settings = new AppSettings();
+            var store = new SettingsService(settingsPath);
+            var placement = new WindowPlacementService();
+            var toolbar = new ToolbarWindow(placement, store, settings);
+            var overlay = new ControlledOverlay();
+            var capture = new ScreenTextCaptureService(
+                placement,
+                new FakeRegionCapture(),
+                new FakeOcr(capturedText ?? string.Empty),
+                _ => overlay,
+                () => placement.GetMonitors().First(monitor => monitor.IsPrimary));
+            var fixture = PanelFixture.Create(viewModel, capture);
+            var hotkeys = new GlobalHotkeyService();
+            var theme = new ThemeService(
+                AppAppearanceMode.Dark,
+                new AppAppearanceResolver(),
+                new WindowsThemeWatcher(),
+                new ResourceDictionary());
+            var coordinator = fixture.Coordinator(
+                toolbar, viewModel, placement, store, settings, hotkeys, theme, capture);
+            var originalMainWindow = Application.Current.MainWindow;
+            Application.Current.MainWindow = toolbar;
+            coordinator.ShowToolbar();
+            coordinator.ShowPanel();
+            DrainDispatcher();
+            return new ShortcutHarness(
+                settingsPath,
+                originalMainWindow,
+                fixture,
+                coordinator,
+                hotkeys,
+                theme,
+                toolbar,
+                viewModel,
+                overlay,
+                capture,
+                capturedText);
+        }
+
+        public void ClosePanel()
+        {
+            ViewModel.ClosePanelCommand.Execute(null);
+            DrainDispatcher();
+            Assert.False(Panel.IsVisible);
+        }
+
+        public void ToggleApplicationVisibility()
+        {
+            InvokeCoordinator("ToggleApplicationVisibility");
+            DrainDispatcher();
+        }
+
+        public void RunCapture()
+        {
+            InvokeCoordinator("TriggerExtractTextFromScreen");
+            DrainDispatcher();
+            Assert.True(_capture.IsCapturing);
+            _overlay.Selection.SetResult(
+                _capturedText is null ? null : new PixelRect(0, 0, 10, 10));
+            WaitUntil(() => !_capture.IsCapturing
+                && Translation.LastCaptureStatus is not null);
+            DrainDispatcher();
+        }
+
+        private void InvokeCoordinator(string methodName) =>
+            typeof(WindowCoordinator).GetMethod(
+                methodName,
+                System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance)!.Invoke(_coordinator, null);
+
+        private static void WaitUntil(Func<bool> condition)
+        {
+            var frame = new DispatcherFrame();
+            var timeout = new DispatcherTimer(DispatcherPriority.Send)
+            {
+                Interval = TimeSpan.FromSeconds(5)
+            };
+            var probe = new DispatcherTimer(DispatcherPriority.ApplicationIdle)
+            {
+                Interval = TimeSpan.FromMilliseconds(10)
+            };
+            timeout.Tick += (_, _) => frame.Continue = false;
+            probe.Tick += (_, _) =>
+            {
+                if (condition()) frame.Continue = false;
+            };
+            timeout.Start();
+            probe.Start();
+            try { Dispatcher.PushFrame(frame); }
+            finally
+            {
+                probe.Stop();
+                timeout.Stop();
+            }
+            Assert.True(condition(), "Shortcut capture did not reach its expected state.");
+        }
+
+        public void Dispose()
+        {
+            _coordinator.CloseAll();
+            _fixture.Dispose();
+            _hotkeys.Dispose();
+            _theme.Dispose();
+            Application.Current.MainWindow = _originalMainWindow;
+            System.IO.File.Delete(_settingsPath);
+        }
     }
 
     private sealed class PanelFixture(
@@ -466,13 +684,23 @@ public sealed class PanelVisibilityRuntimeTests
                 placement, store, settings, notes, new IdleQuickChatSession(), quickChat, calendar,
                 Translation, hotkeys, theme, capture);
 
-        public static PanelFixture Create(FloatingToolbarViewModel toolbarViewModel)
+        public static PanelFixture Create(
+            FloatingToolbarViewModel toolbarViewModel,
+            IScreenTextCaptureService? screenTextCaptureService = null)
         {
+            var savedWords = new SavedWordsService(new InMemorySavedWordsStore());
+            savedWords.InitializeAsync().GetAwaiter().GetResult();
+            var frequentWords = new FrequentWordsService(new InMemoryFrequentWordsStore());
+            frequentWords.InitializeAsync().GetAwaiter().GetResult();
             var translation = new TranslationToolViewModel(
                 new UnconfiguredTranslationService(),
                 new InMemoryTranslationHistoryStore(),
                 new NullClipboardService(),
-                new TestOpenAiConfigurationProvider());
+                savedWords,
+                new NullSavedWordsExportService(),
+                frequentWords,
+                new TestOpenAiConfigurationProvider(),
+                screenTextCaptureService: screenTextCaptureService);
             var notes = new NotesToolViewModel(
                 new EmptyNotesStore(),
                 TimeSpan.Zero);
