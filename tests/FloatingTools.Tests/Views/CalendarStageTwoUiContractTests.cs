@@ -38,26 +38,25 @@ public sealed class CalendarStageTwoUiContractTests
     }
 
     [Fact]
-    public void CalendarHeader_ReusesToolHeaderAndExposesStageThreeQuickAdd()
+    public void CalendarHeader_ReusesToolHeaderAndOpensContextualEvents()
     {
         var view = XDocument.Load(FindSourcePath("Views", "CalendarToolView.xaml"));
         var header = view.Descendants()
             .Single(element => element.Name.LocalName == "ToolHeaderControl");
 
         Assert.Equal("{Binding HeaderTitle}", (string?)header.Attribute("Title"));
-        Assert.Equal("+", (string?)header.Attribute("SecondaryActionContent"));
+        Assert.Equal("☷", (string?)header.Attribute("SecondaryActionContent"));
         Assert.Equal(
-            "{Binding BeginQuickAddCommand}",
+            "{Binding OpenContextualEventsCommand}",
             (string?)header.Attribute("SecondaryActionCommand"));
+        Assert.Equal("{Binding IsCalendarPage}",
+            (string?)header.Attribute("IsSecondaryActionVisible"));
         Assert.Equal(
             "{Binding ElementName=CalendarHeaderExpandedContent}",
             (string?)header.Attribute("ExpandedContentRoot"));
 
-        var viewModel = new CalendarToolViewModel(
-            new CalendarSettings(),
-            new FloatingTools.App.Services.CalendarLanguageResolver(),
-            new FloatingTools.App.Services.HebrewCalendarHolidayProvider());
-        Assert.True(viewModel.BeginQuickAddCommand.CanExecute(null));
+        Assert.DoesNotContain(view.Descendants(), element =>
+            (string?)element.Attribute("SecondaryActionContent") == "+");
     }
 
     [Fact]
@@ -121,13 +120,14 @@ public sealed class CalendarStageTwoUiContractTests
             .Single(element => (string?)element.Attribute(X + "Name") == "CalendarBody");
         var scrolls = body.Descendants(Presentation + "ScrollViewer").ToArray();
 
-        Assert.Equal(3, scrolls.Length);
+        Assert.Equal(4, scrolls.Length);
         Assert.All(scrolls, scroll => Assert.Empty(
             scroll.Ancestors(Presentation + "ScrollViewer")));
         Assert.Contains(body.Descendants(Presentation + "Border"),
             content => (string?)content.Attribute(X + "Name") == "DayPanelExpandedContent"
-                && (string?)content.Attribute("MinHeight") == "92"
-                && (string?)content.Attribute("MaxHeight") == "268");
+                && content.ToString().Contains(
+                    "CalendarDayPanelMinimumHeightConverter", StringComparison.Ordinal)
+                && content.Attribute("MaxHeight") is null);
         Assert.Single(body.Descendants(),
             element => element.Name.LocalName == "GridSplitter");
     }

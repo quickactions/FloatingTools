@@ -1,0 +1,108 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:FloatingTools.App.Controls">
+
+    <!-- The one shared single-line input template.
+
+         The watermark is a template child beside PART_ContentHost and shares
+         Margin="{TemplateBinding Padding}", so the two insets cannot drift
+         apart the way an independently positioned sibling TextBlock does.
+
+         It deliberately declares no FlowDirection and no TextAlignment: both
+         are inherited from the templated parent, which is what places it on
+         the correct physical edge in Hebrew and English alike. Setting
+         TextAlignment="Right" under an RTL flow moves text to the physical
+         LEFT - measured, not assumed - so it must stay unset here.
+
+         It collapses while the control has keyboard focus. PART_ContentHost
+         renders text a few DIP inboard of the Padding edge and that offset is
+         not exposed by any templated property, so no margin value can align a
+         watermark with the caret; hiding it on focus is what keeps the caret
+         clear of the first glyph. -->
+    <Style x:Key="FloatingToolsInputBaseStyle" TargetType="{x:Type TextBox}">
+        <Setter Property="Height" Value="{StaticResource FloatingToolsSizeInputHeight}" />
+        <Setter Property="MinHeight" Value="{StaticResource FloatingToolsSizeInputHeight}" />
+        <Setter Property="Padding" Value="{StaticResource FloatingToolsSpacingControlInput}" />
+        <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceControl}" />
+        <Setter Property="Foreground" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource FloatingToolsBrushSelection}" />
+        <Setter Property="SelectionOpacity" Value="{StaticResource FloatingToolsOpacitySelection}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushBorderInput}" />
+        <Setter Property="BorderThickness" Value="{StaticResource FloatingToolsStrokeThin}" />
+        <Setter Property="FontFamily" Value="{StaticResource FloatingToolsFontFamilyDefault}" />
+        <Setter Property="FontSize" Value="{StaticResource FloatingToolsFontSizeBody}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="AcceptsReturn" Value="False" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Border x:Name="InputSurface"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource FloatingToolsRadiusControl}">
+                        <Grid>
+                            <TextBlock x:Name="Watermark"
+                                       Margin="{TemplateBinding Padding}"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="Collapsed"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                       Text="{Binding (controls:TextBoxWatermark.Text),
+                                           RelativeSource={RelativeSource TemplatedParent}}" />
+                            <!-- No Margin here. A TextBox already applies its
+                                 own Padding to the text host, so binding
+                                 Padding to this Margin as well applies it
+                                 twice and doubles the editing inset (measured:
+                                 Padding=7 produced a 16 dip caret inset, 30
+                                 produced 62). The watermark above is a plain
+                                 TextBlock with no such built-in inset, so it
+                                 keeps the explicit Margin - that is what makes
+                                 the two line up. -->
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Watermark" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="Text" Value="{x:Null}">
+                            <Setter TargetName="Watermark" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <!-- Declared after the two above so it wins: an empty,
+                             focused field shows the caret alone. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="Text" Value="" />
+                                <Condition Property="IsKeyboardFocused" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Watermark" Property="Visibility" Value="Collapsed" />
+                        </MultiTrigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="InputSurface"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource FloatingToolsBrushBorderDefault}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Search fields: the filled, borderless-at-rest variant. Trailing gutter
+         for a clear button, explicit width and watermark text stay at the call
+         site; everything else comes from the base. -->
+    <Style x:Key="FloatingToolsSearchTextBoxStyle"
+           TargetType="{x:Type TextBox}"
+           BasedOn="{StaticResource FloatingToolsInputBaseStyle}">
+        <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushTransparent}" />
+    </Style>
+</ResourceDictionary>

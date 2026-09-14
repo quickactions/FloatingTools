@@ -41,6 +41,32 @@ public sealed class CalendarFocusedCorrectionRuntimeTests
         });
 
     [Fact]
+    public void ScrollingManySelectedDayEventsKeepsAddActionInsideExpandedPanel()
+        => RunSta(() =>
+        {
+            using var fixture = CreateDisplayedFixture(
+                CalendarLanguageMode.English, width: 300, height: 458, entryCount: 20);
+            var expandedContent = FindNamed<Border>(fixture.View, "DayPanelExpandedContent");
+            var scroller = FindNamed<ScrollViewer>(fixture.View, "DayPanelScrollViewer");
+            var add = FindNamed<Button>(fixture.View, "DayPanelAddButton");
+            expandedContent.Height = 106;
+            fixture.Window.UpdateLayout();
+
+            scroller.ScrollToEnd();
+            fixture.Window.UpdateLayout();
+            var addTop = add.TranslatePoint(new Point(), expandedContent).Y;
+            var addBottom = add.TranslatePoint(
+                new Point(0, add.ActualHeight), expandedContent).Y;
+
+            Assert.True(scroller.VerticalOffset > 0);
+            Assert.True(addTop >= -0.5,
+                $"Add action top {addTop} should remain inside the expanded panel.");
+            Assert.True(addBottom <= expandedContent.ActualHeight + 0.5,
+                $"Add action bottom {addBottom} should remain inside expanded panel height {expandedContent.ActualHeight}.");
+            Assert.True(add.IsVisible);
+        });
+
+    [Fact]
     public void EmptyAddEditorBackspaceOrDeleteCancelsWhileNonEmptyTextDoesNot()
         => RunSta(() =>
         {
@@ -108,8 +134,10 @@ public sealed class CalendarFocusedCorrectionRuntimeTests
             using var fixture = CreateDisplayedFixture(language, width: 300, height: 458);
             fixture.ViewModel.OpenSettingsCommand.Execute(null);
             fixture.Window.UpdateLayout();
-            var back = FindNamed<Button>(fixture.View, "BackButton");
-            var title = FindNamed<TextBlock>(fixture.View, "TitleText");
+            var shell = FindNamed<FloatingTools.App.SharedUi.Controls.SettingsPageShell>(
+                fixture.View, "CalendarSettingsShell");
+            var back = (Button)shell.Template.FindName("BackButton", shell);
+            var title = (TextBlock)shell.Template.FindName("TitleText", shell);
             var backCenter = back.TranslatePoint(
                 new Point(back.ActualWidth / 2, back.ActualHeight / 2), fixture.View).X;
             var titleCenter = title.TranslatePoint(
@@ -307,9 +335,9 @@ public sealed class CalendarFocusedCorrectionRuntimeTests
         });
 
     [Theory]
-    [InlineData(109)]
-    [InlineData(285)]
-    public void WeekCanScrollSaturdayFullyAboveDayPanelAtOverlayBounds(double overlayHeight)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WeekCanScrollSaturdayFullyAboveDayPanelAtOverlayBounds(bool useMaximumHeight)
         => RunSta(() =>
         {
             using var fixture = CreateDisplayedFixture(
@@ -317,8 +345,11 @@ public sealed class CalendarFocusedCorrectionRuntimeTests
             fixture.ViewModel.ShowWeekCommand.Execute(null);
             var overlay = FindNamed<Grid>(fixture.View, "DayPanelOverlay");
             var expandedContent = FindNamed<Border>(fixture.View, "DayPanelExpandedContent");
-            expandedContent.Height = overlayHeight - 17;
+            expandedContent.Height = useMaximumHeight
+                ? expandedContent.MaxHeight
+                : CalendarDayPanelSizing.CompactMinimumHeight;
             fixture.Window.UpdateLayout();
+            var overlayHeight = overlay.ActualHeight;
             var scroller = FindNamed<ScrollViewer>(fixture.View, "WeekScrollViewer");
             scroller.ScrollToVerticalOffset(scroller.ScrollableHeight);
             fixture.Window.UpdateLayout();
@@ -334,17 +365,20 @@ public sealed class CalendarFocusedCorrectionRuntimeTests
         });
 
     [Theory]
-    [InlineData(109)]
-    [InlineData(285)]
-    public void MonthCanScrollFinalRowFullyAboveDayPanelAtOverlayBounds(double overlayHeight)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MonthCanScrollFinalRowFullyAboveDayPanelAtOverlayBounds(bool useMaximumHeight)
         => RunSta(() =>
         {
             using var fixture = CreateDisplayedFixture(
                 CalendarLanguageMode.English, width: 300, height: 458);
             var overlay = FindNamed<Grid>(fixture.View, "DayPanelOverlay");
             var expandedContent = FindNamed<Border>(fixture.View, "DayPanelExpandedContent");
-            expandedContent.Height = overlayHeight - 17;
+            expandedContent.Height = useMaximumHeight
+                ? expandedContent.MaxHeight
+                : CalendarDayPanelSizing.CompactMinimumHeight;
             fixture.Window.UpdateLayout();
+            var overlayHeight = overlay.ActualHeight;
             var scroller = FindNamed<ScrollViewer>(fixture.View, "MonthScrollViewer");
             scroller.ScrollToVerticalOffset(scroller.ScrollableHeight);
             fixture.Window.UpdateLayout();

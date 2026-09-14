@@ -76,6 +76,7 @@ internal static class WpfTestApplication
             "SharedUi/Styles/SettingsPageShell.xaml",
             "SharedUi/Styles/SettingsComboBoxes.xaml",
             "SharedUi/Styles/TextBoxes.xaml",
+            "SharedUi/Styles/Inputs.xaml",
             "SharedUi/Styles/ToolHeader.xaml",
             "SharedUi/Styles/Tooltips.xaml",
             "Resources/SharedWindowStyles.xaml"

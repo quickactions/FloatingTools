@@ -54,10 +54,13 @@ public sealed class CalendarStageThreeUiContractTests
         var splitter = document.Descendants(Presentation + "GridSplitter").Single();
         var code = File.ReadAllText(FindSourcePath("Views", "CalendarToolView.xaml.cs"));
 
-        Assert.Equal("92", (string?)content.Attribute("MinHeight"));
-        Assert.Equal("268", (string?)content.Attribute("MaxHeight"));
-        Assert.Equal(109, 17 + int.Parse((string)content.Attribute("MinHeight")!));
-        Assert.Equal(285, 17 + int.Parse((string)content.Attribute("MaxHeight")!));
+        Assert.Null(content.Attribute("Height"));
+        Assert.Null(content.Attribute("MaxHeight"));
+        Assert.Contains("CalendarDayPanelMinimumHeightConverter", content.ToString());
+        Assert.Contains("Path=\"LayoutMode\"", content.ToString());
+        Assert.Contains("Path=\"IsEventEditorOpen\"", content.ToString());
+        Assert.Contains("CalendarDayPanelSizing.GetMaximumHeight", code);
+        Assert.Contains("CalendarDayPanelSizing.GetDefaultHeight", code);
         Assert.Equal("Rows", (string?)splitter.Attribute("ResizeDirection"));
         Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
         Assert.DoesNotContain("Window.Height", code);
@@ -129,7 +132,9 @@ public sealed class CalendarStageThreeUiContractTests
         Assert.Contains(document.Descendants(),
             element => element.Name.LocalName == "SettingsPageShell"
                 && (string?)element.Attribute("BackCommand") == "{Binding BackToCalendarCommand}");
-        Assert.Equal(3, document.Descendants(Presentation + "ComboBox").Count());
+        var settings = document.Descendants().Single(element =>
+            (string?)element.Attribute(X + "Name") == "CalendarSettingsShell");
+        Assert.Equal(3, settings.Descendants(Presentation + "ComboBox").Count());
         Assert.Contains(document.Descendants(Presentation + "CheckBox"),
             box => (string?)box.Attribute("IsChecked") == "{Binding ShowHolidays, Mode=TwoWay}");
         Assert.DoesNotContain(document.Descendants(),

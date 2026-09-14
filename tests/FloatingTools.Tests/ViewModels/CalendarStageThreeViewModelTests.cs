@@ -224,27 +224,25 @@ public sealed class CalendarStageThreeViewModelTests
         fixture.ViewModel.BeginQuickAddCommand.Execute(null);
 
         Assert.True(fixture.ViewModel.IsAddingEvent);
-        Assert.False(fixture.ViewModel.IsQuickAddDatePromptOpen);
+        Assert.False(fixture.ViewModel.IsAddEventHintVisible);
         Assert.Equal(Today, fixture.ViewModel.SelectedDate);
     }
 
     [Fact]
-    public async Task QuickAdd_WithoutSelectionRequiresValidSupportedDate()
+    public async Task QuickAdd_WithoutSelectionShowsHintThenSelectingADayClearsIt()
     {
         var fixture = await CreateAsync();
+
         fixture.ViewModel.BeginQuickAddCommand.Execute(null);
-        fixture.ViewModel.QuickAddDateText = "1.1.2101";
 
-        fixture.ViewModel.ContinueQuickAddDateCommand.Execute(null);
-
-        Assert.True(fixture.ViewModel.IsQuickAddDatePromptOpen);
+        Assert.True(fixture.ViewModel.IsAddEventHintVisible);
         Assert.Null(fixture.ViewModel.SelectedDate);
-        Assert.NotNull(fixture.ViewModel.QuickAddValidationMessage);
+        Assert.False(fixture.ViewModel.IsAddingEvent);
 
-        fixture.ViewModel.QuickAddDateText = "1 3 26";
-        fixture.ViewModel.ContinueQuickAddDateCommand.Execute(null);
-        Assert.Equal(new DateOnly(2026, 3, 1), fixture.ViewModel.SelectedDate);
-        Assert.True(fixture.ViewModel.IsAddingEvent);
+        fixture.ViewModel.SelectDateCommand.Execute(Today);
+
+        Assert.False(fixture.ViewModel.IsAddEventHintVisible);
+        Assert.Equal(Today, fixture.ViewModel.SelectedDate);
     }
 
     [Theory]

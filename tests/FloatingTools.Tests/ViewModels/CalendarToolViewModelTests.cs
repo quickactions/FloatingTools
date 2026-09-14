@@ -323,13 +323,14 @@ public sealed class CalendarToolViewModelTests
     }
 
     [Fact]
-    public void QuickAdd_WithoutSelectionOpensDatePrompt()
+    public void QuickAdd_WithoutSelectionShowsTheSelectADayHint()
     {
         var viewModel = Create(new DateOnly(2026, 9, 17));
 
         viewModel.BeginQuickAddCommand.Execute(null);
 
-        Assert.True(viewModel.IsQuickAddDatePromptOpen);
+        Assert.True(viewModel.IsAddEventHintVisible);
+        Assert.Null(viewModel.SelectedDate);
     }
 
     private static CalendarToolViewModel Create(

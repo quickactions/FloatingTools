@@ -28,6 +28,8 @@ public partial class CalendarToolViewModel : ObservableObject
     private CalendarView _currentView;
     private CalendarDisplayLanguage _displayLanguage;
 
+    public CalendarLayoutMode LayoutMode { get; private set; } = CalendarLayoutMode.Compact;
+
     [ObservableProperty]
     private bool _isHeaderExpanded;
 
@@ -36,7 +38,9 @@ public partial class CalendarToolViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsCalendarPage))]
-    private bool _isSettingsPage;
+    [NotifyPropertyChangedFor(nameof(IsEventsPage))]
+    [NotifyPropertyChangedFor(nameof(IsSettingsPage))]
+    private CalendarPage _currentPage = CalendarPage.Calendar;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -45,13 +49,7 @@ public partial class CalendarToolViewModel : ObservableObject
     private string? _searchValidationMessage;
 
     [ObservableProperty]
-    private string _quickAddDateText = string.Empty;
-
-    [ObservableProperty]
-    private string? _quickAddValidationMessage;
-
-    [ObservableProperty]
-    private bool _isQuickAddDatePromptOpen;
+    private bool _isAddEventHintVisible;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSaveEvent))]
@@ -165,7 +163,11 @@ public partial class CalendarToolViewModel : ObservableObject
 
     public CalendarDisplayLanguage DisplayLanguage => _displayLanguage;
 
-    public bool IsCalendarPage => !IsSettingsPage;
+    public bool IsCalendarPage => CurrentPage == CalendarPage.Calendar;
+
+    public bool IsEventsPage => CurrentPage == CalendarPage.Events;
+
+    public bool IsSettingsPage => CurrentPage == CalendarPage.Settings;
 
     public string HeaderTitle => IsHebrew ? "לוח שנה" : "Calendar";
 
@@ -193,6 +195,14 @@ public partial class CalendarToolViewModel : ObservableObject
 
     public string EventsHeading => IsHebrew ? "אירועים" : "Events";
 
+    public string AddEventMenuLabel => IsHebrew ? "הוסף אירוע" : "Add event";
+
+    public string EventsActionToolTip => IsHebrew
+        ? "הצגת אירועים בתקופה המוצגת"
+        : "Show events in the displayed period";
+
+    public string BackToCalendarToolTip => IsHebrew ? "חזרה ללוח השנה" : "Back to Calendar";
+
     public string SelectDayText => IsHebrew ? "בחרו יום" : "Select a day";
 
     public string AddEventLabel => IsHebrew ? "הוספת אירוע" : "Add event";
@@ -201,15 +211,13 @@ public partial class CalendarToolViewModel : ObservableObject
 
     public string EventPlaceholder => IsHebrew ? "מה מתוכנן?" : "What is planned?";
 
-    public string QuickAddDatePrompt => IsHebrew ? "בחרו תאריך לאירוע" : "Choose a date for the event";
-
-    public string QuickAddDatePlaceholder => IsHebrew ? "לדוגמה 1.3.26" : "For example 1.3.26";
+    public string SelectDayToAddEventHint => IsHebrew
+        ? "בחר יום או תאריך כדי להוסיף אירוע"
+        : "Select a day or date to add an event";
 
     public string SaveLabel => IsHebrew ? "שמירה" : "Save";
 
     public string CancelLabel => IsHebrew ? "ביטול" : "Cancel";
-
-    public string ContinueLabel => IsHebrew ? "המשך" : "Continue";
 
     public string EditLabel => IsHebrew ? "עריכה" : "Edit";
 
@@ -241,6 +249,14 @@ public partial class CalendarToolViewModel : ObservableObject
     public DateOnly DisplayedDate => _displayedDate;
 
     public DateOnly? SelectedDate => _selectedDate;
+
+    public DateOnly VisibleRangeStart => CurrentView == CalendarView.Month
+        ? new DateOnly(_displayedDate.Year, _displayedDate.Month, 1)
+        : GetDisplayWeekStart(_displayedDate);
+
+    public DateOnly VisibleRangeEnd => CurrentView == CalendarView.Month
+        ? VisibleRangeStart.AddMonths(1).AddDays(-1)
+        : VisibleRangeStart.AddDays(6);
 
     public DayOfWeek FirstDayOfWeek => ResolveFirstDayOfWeek();
 
@@ -276,6 +292,34 @@ public partial class CalendarToolViewModel : ObservableObject
 
     public IReadOnlyList<CalendarSearchResultViewModel> SearchResults { get; private set; } = [];
 
+    public CalendarEventsViewModel? EventsViewModel { get; private set; }
+
+    public CalendarEventsViewModel? ContextualEventsViewModel { get; private set; }
+
+    public void SetLayoutMode(CalendarLayoutMode layoutMode)
+    {
+        if (LayoutMode == layoutMode)
+        {
+            return;
+        }
+
+        LayoutMode = layoutMode;
+        OnPropertyChanged(nameof(LayoutMode));
+        EventsViewModel?.SetLayoutMode(layoutMode);
+        ContextualEventsViewModel?.SetLayoutMode(layoutMode);
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDayContentVisible))]
+    [NotifyPropertyChangedFor(nameof(IsCompactPanelExpanded))]
+    private bool _isContextualEventsOpen;
+
+    public bool IsDayContentVisible => !IsContextualEventsOpen;
+    public bool IsCompactPanelExpanded => IsContextualEventsOpen || IsDayPanelExpanded;
+
+    partial void OnIsDayPanelExpandedChanged(bool value) =>
+        OnPropertyChanged(nameof(IsCompactPanelExpanded));
+
     public IReadOnlyList<CalendarSettingChoice<CalendarLanguageMode>> LanguageChoices { get; private set; } = [];
 
     public IReadOnlyList<CalendarSettingChoice<CalendarView>> ViewChoices { get; private set; } = [];
@@ -291,6 +335,8 @@ public partial class CalendarToolViewModel : ObservableObject
     }
 
     public string PeriodTitle { get; private set; } = string.Empty;
+
+    public string ContextualEventsTitle => $"{EventsHeading} — {PeriodTitle}";
 
     /// <summary>
     /// Explicit directional fragments used only by the Hebrew Week-title XAML.
@@ -465,8 +511,9 @@ public partial class CalendarToolViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSelectDate))]
     private void SelectDate(DateOnly date)
     {
+        CloseContextualEvents();
         HighlightedEntryId = null;
-        IsQuickAddDatePromptOpen = false;
+        IsAddEventHintVisible = false;
         CancelEventEditor();
         NavigateAndSelect(date);
     }
@@ -478,7 +525,7 @@ public partial class CalendarToolViewModel : ObservableObject
     {
         _selectedDate = null;
         HighlightedEntryId = null;
-        IsQuickAddDatePromptOpen = false;
+        IsAddEventHintVisible = false;
         CancelEventEditor();
         RefreshPresentation();
     }
@@ -492,8 +539,9 @@ public partial class CalendarToolViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanBeginQuickAdd))]
     private void BeginQuickAdd()
     {
+        CloseContextualEvents();
         IsDayPanelExpanded = true;
-        IsSettingsPage = false;
+        CurrentPage = CalendarPage.Calendar;
         IsHeaderExpanded = false;
         OperationErrorMessage = null;
         if (_selectedDate is not null)
@@ -502,32 +550,10 @@ public partial class CalendarToolViewModel : ObservableObject
             return;
         }
 
+        // No day selected: say so and stop. Picking the date is the calendar's
+        // job, so there is no second date-entry surface here.
         CancelEventEditor();
-        QuickAddDateText = string.Empty;
-        QuickAddValidationMessage = null;
-        IsQuickAddDatePromptOpen = true;
-    }
-
-    [RelayCommand]
-    private void ContinueQuickAddDate()
-    {
-        if (!TryParseSupportedDate(QuickAddDateText, out var date, out var validation))
-        {
-            QuickAddValidationMessage = validation;
-            return;
-        }
-
-        QuickAddValidationMessage = null;
-        IsQuickAddDatePromptOpen = false;
-        NavigateAndSelect(date);
-        BeginAddEvent();
-    }
-
-    [RelayCommand]
-    private void CancelQuickAddDate()
-    {
-        IsQuickAddDatePromptOpen = false;
-        QuickAddValidationMessage = null;
+        IsAddEventHintVisible = true;
     }
 
     [RelayCommand(CanExecute = nameof(CanBeginAddEvent))]
@@ -695,22 +721,58 @@ public partial class CalendarToolViewModel : ObservableObject
             return;
         }
 
-        HighlightedEntryId = result.EntryId;
         IsHeaderExpanded = false;
-        NavigateAndSelect(result.Date, preserveHighlight: true);
-        EntryVisibilityRequested?.Invoke(result.EntryId);
+        ActivateEntry(result.EntryId, result.Date);
+    }
+
+    [RelayCommand]
+    private void OpenContextualEvents()
+    {
+        IsHeaderExpanded = false;
+        ContextualEventsViewModel = new CalendarEventsViewModel(
+            CalendarEventsMode.Contextual,
+            VisibleRangeStart,
+            VisibleRangeEnd,
+            _entries,
+            IsHebrew,
+            ActivateEntry,
+            layoutMode: LayoutMode);
+        OnPropertyChanged(nameof(ContextualEventsViewModel));
+        IsContextualEventsOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseContextualEvents() => IsContextualEventsOpen = false;
+
+    [RelayCommand]
+    private void OpenEvents()
+    {
+        IsHeaderExpanded = false;
+        if (EventsViewModel is null)
+        {
+            EventsViewModel = new CalendarEventsViewModel(
+                CalendarEventsMode.Full, DateOnly.MinValue, DateOnly.MaxValue,
+                _entries, IsHebrew, ActivateEntry, todayProvider: _todayProvider,
+                weekStartProvider: GetDisplayWeekStart, layoutMode: LayoutMode);
+        }
+        else
+        {
+            EventsViewModel.RefreshSource(_entries, IsHebrew);
+        }
+        OnPropertyChanged(nameof(EventsViewModel));
+        CurrentPage = CalendarPage.Events;
     }
 
     [RelayCommand]
     private void OpenSettings()
     {
         IsHeaderExpanded = false;
-        IsSettingsPage = true;
+        CurrentPage = CalendarPage.Settings;
         SettingsErrorMessage = null;
     }
 
     [RelayCommand]
-    private void BackToCalendar() => IsSettingsPage = false;
+    private void BackToCalendar() => CurrentPage = CalendarPage.Calendar;
 
     public Guid? HighlightedEntryId { get; private set; }
 
@@ -762,7 +824,7 @@ public partial class CalendarToolViewModel : ObservableObject
             HighlightedEntryId = null;
         }
 
-        IsQuickAddDatePromptOpen = false;
+        IsAddEventHintVisible = false;
         RefreshPresentation();
     }
 
@@ -832,10 +894,12 @@ public partial class CalendarToolViewModel : ObservableObject
             nameof(SearchPlaceholder), nameof(SettingsLabel), nameof(CalendarSettingsTitle),
             nameof(LanguageLabel), nameof(DefaultViewLabel), nameof(FirstDayLabel),
             nameof(ShowHolidaysLabel), nameof(MonthLabel), nameof(WeekLabel),
-            nameof(NoEventsText), nameof(EventsHeading), nameof(SelectDayText), nameof(AddEventLabel),
-            nameof(EditEventLabel), nameof(EventPlaceholder), nameof(QuickAddDatePrompt),
-            nameof(QuickAddDatePlaceholder), nameof(SaveLabel), nameof(CancelLabel),
-            nameof(ContinueLabel), nameof(EditLabel), nameof(CopyLabel), nameof(DeleteLabel),
+            nameof(NoEventsText), nameof(EventsHeading), nameof(AddEventMenuLabel),
+            nameof(EventsActionToolTip), nameof(BackToCalendarToolTip),
+            nameof(SelectDayText), nameof(AddEventLabel),
+            nameof(EditEventLabel), nameof(EventPlaceholder), nameof(SelectDayToAddEventHint),
+            nameof(SaveLabel), nameof(CancelLabel),
+            nameof(EditLabel), nameof(CopyLabel), nameof(DeleteLabel),
             nameof(ContentFlowDirection), nameof(ContentTextAlignment),
             nameof(ContentHorizontalAlignment), nameof(TodayBadgeHorizontalAlignment)
         })
@@ -884,6 +948,11 @@ public partial class CalendarToolViewModel : ObservableObject
         DayPanel = BuildDayPanel();
         PeriodTitle = BuildPeriodTitle();
         HebrewWeekTitle = BuildHebrewWeekTitle();
+        if (IsContextualEventsOpen && ContextualEventsViewModel is not null)
+        {
+            ContextualEventsViewModel.SetRange(VisibleRangeStart, VisibleRangeEnd);
+            ContextualEventsViewModel.RefreshSource(_entries, IsHebrew);
+        }
         TodayDateText = CalendarSupportedDateRange.Contains(today)
             ? FormatCompactDate(today)
             : string.Empty;
@@ -895,10 +964,12 @@ public partial class CalendarToolViewModel : ObservableObject
         {
             nameof(DisplayedDate), nameof(SelectedDate), nameof(WeekdayHeaders),
             nameof(MonthDays), nameof(MonthWeekRowCount), nameof(WeekDays),
-            nameof(DayPanel), nameof(PeriodTitle), nameof(HebrewWeekTitle), nameof(HasHebrewWeekTitle),
+            nameof(DayPanel), nameof(PeriodTitle), nameof(ContextualEventsTitle),
+            nameof(HebrewWeekTitle), nameof(HasHebrewWeekTitle),
             nameof(IsHebrewSameMonthWeekTitle), nameof(IsHebrewCrossMonthWeekTitle),
             nameof(TodayIndicatorText), nameof(TodayDateText), nameof(CanNavigatePrevious),
-            nameof(CanNavigateNext), nameof(CanGoToToday), nameof(CanAddEvent)
+            nameof(CanNavigateNext), nameof(CanGoToToday), nameof(CanAddEvent),
+            nameof(VisibleRangeStart), nameof(VisibleRangeEnd)
         })
         {
             OnPropertyChanged(property);
@@ -1020,27 +1091,6 @@ public partial class CalendarToolViewModel : ObservableObject
         OnPropertyChanged(nameof(SearchResults));
     }
 
-    private bool TryParseSupportedDate(
-        string? text,
-        out DateOnly date,
-        out string validation)
-    {
-        if (!CalendarDateParser.TryParse(text, out date))
-        {
-            validation = InvalidDateText();
-            return false;
-        }
-
-        if (!CalendarSupportedDateRange.Contains(date))
-        {
-            validation = OutOfRangeText();
-            return false;
-        }
-
-        validation = string.Empty;
-        return true;
-    }
-
     private static bool LooksLikeDateInput(string? text) =>
         !string.IsNullOrWhiteSpace(text)
         && text.Any(char.IsDigit)
@@ -1089,13 +1139,9 @@ public partial class CalendarToolViewModel : ObservableObject
         CalendarDateFormatter.FormatCompactDate(
             date, _displayLanguage, _displayCulture);
 
-    private string InvalidDateText() => IsHebrew
-        ? "הזינו תאריך תקין, לדוגמה 1.3.26."
-        : "Enter a valid date, for example 1.3.26.";
+    private string InvalidDateText() => CalendarDateValidationMessages.InvalidDate(IsHebrew);
 
-    private string OutOfRangeText() => IsHebrew
-        ? "התאריך חייב להיות בין 1.1.1900 ל־31.12.2100."
-        : "Date must be between 1 Jan 1900 and 31 Dec 2100.";
+    private string OutOfRangeText() => CalendarDateValidationMessages.UnsupportedDate(IsHebrew);
 
     private string PersistenceFailureText() => IsHebrew
         ? "לא ניתן היה לשמור את השינויים בלוח השנה."
@@ -1115,6 +1161,20 @@ public partial class CalendarToolViewModel : ObservableObject
         _selectedDate is { } date && HasEntryCapacity(date);
 
     private bool IsHebrew => _displayLanguage == CalendarDisplayLanguage.Hebrew;
+
+    private void ActivateEntry(Guid entryId, DateOnly date)
+    {
+        if (!CalendarSupportedDateRange.Contains(date))
+        {
+            return;
+        }
+
+        CurrentPage = CalendarPage.Calendar;
+        CloseContextualEvents();
+        HighlightedEntryId = entryId;
+        NavigateAndSelect(date, preserveHighlight: true);
+        EntryVisibilityRequested?.Invoke(entryId);
+    }
 
     private void NotifyEditorStateChanged()
     {

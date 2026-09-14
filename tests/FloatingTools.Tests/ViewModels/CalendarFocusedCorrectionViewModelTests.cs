@@ -32,19 +32,19 @@ public sealed class CalendarFocusedCorrectionViewModelTests
     }
 
     [Fact]
-    public async Task DatePromptQuickAddUsesSameCapacityGuard()
+    public async Task QuickAddWithoutSelectionOnlyShowsTheHintAndCreatesNothing()
     {
         var fixture = await CreateAsync(Enumerable.Range(1, 5)
             .Select(index => Entry($"Existing {index}"))
             .ToArray());
 
         fixture.ViewModel.BeginQuickAddCommand.Execute(null);
-        fixture.ViewModel.QuickAddDateText = "17.9.2026";
-        fixture.ViewModel.ContinueQuickAddDateCommand.Execute(null);
 
-        Assert.Equal(Date, fixture.ViewModel.SelectedDate);
+        // Choosing the day is the calendar's job, so nothing is selected,
+        // no editor opens and no entry is written.
+        Assert.True(fixture.ViewModel.IsAddEventHintVisible);
+        Assert.Null(fixture.ViewModel.SelectedDate);
         Assert.False(fixture.ViewModel.IsEventEditorOpen);
-        Assert.NotNull(fixture.ViewModel.OperationErrorMessage);
         Assert.Equal(5, fixture.Store.Current.Entries.Count);
     }
 
@@ -152,7 +152,7 @@ public sealed class CalendarFocusedCorrectionViewModelTests
         Assert.False(fixture.ViewModel.IsDayPanelExpanded);
         fixture.ViewModel.BeginQuickAddCommand.Execute(null);
         Assert.True(fixture.ViewModel.IsDayPanelExpanded);
-        Assert.True(fixture.ViewModel.IsQuickAddDatePromptOpen);
+        Assert.True(fixture.ViewModel.IsAddEventHintVisible);
     }
 
     [Fact]

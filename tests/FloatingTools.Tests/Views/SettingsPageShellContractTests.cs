@@ -146,7 +146,9 @@ public sealed class SettingsPageShellContractTests
     {
         var document = XDocument.Load(FindSourcePath("Views", viewFile));
         var shell = document.Descendants()
-            .Single(element => element.Name.LocalName == "SettingsPageShell");
+            .Single(element => element.Name.LocalName == "SettingsPageShell"
+                && element.Descendants(Presentation + "TextBlock").Any(text =>
+                    (string?)text.Attribute("Text") == bodyText));
         Assert.Equal(backCommand, (string?)shell.Attribute("BackCommand"));
         Assert.Empty(shell.Descendants(Presentation + "ScrollViewer"));
         Assert.Contains(shell.Descendants(Presentation + "TextBlock"),

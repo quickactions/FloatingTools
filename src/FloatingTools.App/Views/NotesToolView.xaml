@@ -134,6 +134,13 @@
             </Setter>
         </Style>
 
+        <!-- Alias only. NotesInputTextBoxStyle stays as it is because the
+             rename box still uses it; the search moves to the shared search
+             family without disturbing that. -->
+        <Style x:Key="NotesSearchTextBoxStyle"
+               TargetType="{x:Type TextBox}"
+               BasedOn="{StaticResource FloatingToolsSearchTextBoxStyle}" />
+
         <Style x:Key="NotesContextMenuStyle"
                TargetType="{x:Type ContextMenu}"
                BasedOn="{StaticResource FloatingToolsSharedContextMenuStyle}">
@@ -514,18 +521,13 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Border Grid.Row="0"
-                        Height="30"
-                        Margin="10,2,10,7"
-                        Background="{DynamicResource FloatingToolsBrushSurfaceInput}"
-                        BorderBrush="{DynamicResource FloatingToolsBrushBorderInput}"
-                        BorderThickness="1"
-                        CornerRadius="6">
-                    <controls:NoteDirectionalTextBox x:Name="NotesSearchTextBox"
-                        Style="{StaticResource NotesInputTextBoxStyle}"
-                        Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="Search note titles" />
-                </Border>
+                <controls:NoteDirectionalTextBox x:Name="NotesSearchTextBox"
+                    Grid.Row="0"
+                    Margin="10,2,10,7"
+                    Style="{StaticResource NotesSearchTextBoxStyle}"
+                    controls:TextBoxWatermark.Text="Search note titles"
+                    Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                    ToolTip="Search note titles" />
 
                 <ScrollViewer Grid.Row="1"
                               Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"

@@ -3,12 +3,15 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:FloatingTools.App.Controls"
+             xmlns:services="clr-namespace:FloatingTools.App.Services"
              xmlns:sharedControls="clr-namespace:FloatingTools.App.SharedUi.Controls"
              xmlns:popups="clr-namespace:FloatingTools.App.SharedUi.Popups"
              Background="{DynamicResource FloatingToolsBrushSurfaceBase}"
              FlowDirection="LeftToRight">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <services:CalendarDayPanelMinimumHeightConverter
+            x:Key="CalendarDayPanelMinimumHeightConverter" />
 
         <Style x:Key="CalendarToolHeaderStyle"
                TargetType="{x:Type sharedControls:ToolHeaderControl}"
@@ -60,6 +63,29 @@
             <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
             <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
         </Style>
+
+        <Style x:Key="FullEventsFilledFilterStyle" TargetType="ComboBox"
+               BasedOn="{StaticResource SettingsComboBoxStyle}">
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceControl}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushTransparent}" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Height" Value="30" />
+        </Style>
+        <!-- Template, padding, surface, border and focus now come from the
+             shared input system (SharedUi/Styles/Inputs.xaml); only the filled
+             search variant's own setters stay here. -->
+        <Style x:Key="FullEventsFilledSearchStyle" TargetType="TextBox"
+               BasedOn="{StaticResource FloatingToolsSearchTextBoxStyle}">
+            <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceControl}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource FloatingToolsBrushTransparent}" />
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
+
+        <!-- Alias only. CalendarSingleLineInputStyle stays as it is because the
+             event editor still uses it; the menu search moves to the shared
+             search family without disturbing that. -->
+        <Style x:Key="CalendarMenuSearchStyle" TargetType="TextBox"
+               BasedOn="{StaticResource FloatingToolsSearchTextBoxStyle}" />
 
         <Style x:Key="CalendarTodayButtonStyle"
                TargetType="{x:Type Button}"
@@ -279,6 +305,87 @@
                 </StackPanel>
             </Border>
         </DataTemplate>
+        <DataTemplate x:Key="CalendarEventsListTemplate">
+            <StackPanel FlowDirection="{Binding DataContext.ContentFlowDirection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
+                <TextBlock Margin="8,20" HorizontalAlignment="Center"
+                           Text="{Binding EmptyText}"
+                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Items.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <ItemsControl x:Name="ContextualEventItems"
+                              ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid x:Name="ContextualEventRow" Margin="4,0,8,0"
+                                  Background="Transparent"
+                                  MouseLeftButtonDown="ContextualEventRow_OnMouseLeftButtonDown"
+                                  ToolTip="{Binding DataContext.OpenToolTip, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="1" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="82" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="28" />
+                                </Grid.ColumnDefinitions>
+                                <Border Margin="0,6,8,6" Padding="5,2"
+                                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                                        Background="{DynamicResource FloatingToolsBrushSurfaceElevated}"
+                                        CornerRadius="{StaticResource FloatingToolsRadiusSmall}"
+                                        FlowDirection="LeftToRight">
+                                    <TextBlock Text="{Binding DateText}" FontSize="10"
+                                               FlowDirection="LeftToRight" TextAlignment="Center"
+                                               Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}" />
+                                </Border>
+                                <Grid Grid.Column="1" Margin="0,6" VerticalAlignment="Center">
+                                    <TextBlock x:Name="ContextualEventPreview"
+                                               Text="{Binding Preview}" TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               FlowDirection="{Binding TextFlowDirection}"
+                                               TextAlignment="{Binding TextAlignment}"
+                                               Visibility="{Binding IsCollapsed, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                               Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                    <TextBox x:Name="ContextualEventFullText"
+                                             Style="{StaticResource CalendarReadOnlyEventTextStyle}"
+                                             Text="{Binding Text, Mode=OneWay}" FlowDirection="{Binding TextFlowDirection}"
+                                             TextAlignment="{Binding TextAlignment}"
+                                             Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                </Grid>
+                                <Button x:Name="ContextualEventExpandButton" Grid.Column="2"
+                                        Width="26" Height="26" VerticalAlignment="Top" Margin="0,3,0,0"
+                                        Command="{Binding ToggleExpandedCommand}"
+                                        Visibility="{Binding HasHiddenContent, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        ToolTip="{Binding DataContext.ExpandToolTip, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}">
+                                    <Button.Style>
+                                        <Style TargetType="{x:Type Button}"
+                                               BasedOn="{StaticResource FloatingToolsSharedIconButtonStyle}">
+                                            <Setter Property="Content" Value="⌄" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                    <Setter Property="Content" Value="⌃" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Border Grid.Row="1" Grid.ColumnSpan="3" Height="1"
+                                        Background="{DynamicResource FloatingToolsBrushBorderDivider}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -293,11 +400,11 @@
                                           IsMenuOpen="{Binding IsHeaderExpanded}"
                                           ExpandedContentRoot="{Binding ElementName=CalendarHeaderExpandedContent}"
                                           Command="{Binding ToggleHeaderCommand}"
-                                          IsSecondaryActionVisible="True"
-                                          SecondaryActionCommand="{Binding BeginQuickAddCommand}"
-                                          SecondaryActionContent="+"
-                                          SecondaryActionToolTip="Add event"
-                                          SecondaryActionAutomationName="Add event"
+                                          IsSecondaryActionVisible="{Binding IsCalendarPage}"
+                                          SecondaryActionCommand="{Binding OpenContextualEventsCommand}"
+                                          SecondaryActionContent="☷"
+                                          SecondaryActionToolTip="{Binding EventsActionToolTip}"
+                                          SecondaryActionAutomationName="{Binding EventsHeading}"
                                           ToolTip="Open Calendar menu" />
 
         <Grid x:Name="CalendarBody" Grid.Row="1" Margin="8,4,8,8"
@@ -429,6 +536,7 @@
             </Button>
 
             <Grid x:Name="CalendarPeriodRegion" Grid.Row="2"
+                  SizeChanged="CalendarPeriodRegion_OnSizeChanged"
                   Background="Transparent" MouseLeftButtonDown="CalendarPeriodRegion_OnMouseLeftButtonDown">
                 <ScrollViewer x:Name="MonthScrollViewer"
                               Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
@@ -593,7 +701,7 @@
                                         <Style TargetType="{x:Type TextBlock}">
                                             <Setter Property="Text" Value="˅" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding DataContext.IsDayPanelExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                <DataTrigger Binding="{Binding DataContext.IsCompactPanelExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                              Value="False">
                                                     <Setter Property="Text" Value="˄" />
                                                 </DataTrigger>
@@ -609,17 +717,52 @@
                 </GridSplitter>
 
                 <Border x:Name="DayPanelExpandedContent" Grid.Row="1"
-                        Height="106" MinHeight="92" MaxHeight="268"
                         Padding="8,6,8,4"
                         Background="{DynamicResource FloatingToolsBrushSurfaceBase}"
                         BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}" BorderThickness="0,1,0,0"
-                        Visibility="{Binding IsDayPanelExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <ScrollViewer x:Name="DayPanelScrollViewer"
-                              Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
-                              controls:SmoothWheelScrollBehavior.IsEnabled="True"
-                              Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}"
-                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <Grid MinHeight="88">
+                        Visibility="{Binding IsCompactPanelExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border.MinHeight>
+                    <MultiBinding Converter="{StaticResource CalendarDayPanelMinimumHeightConverter}">
+                        <Binding Path="LayoutMode" />
+                        <Binding Path="IsEventEditorOpen" />
+                    </MultiBinding>
+                </Border.MinHeight>
+                <Grid>
+                <Grid x:Name="DayPanelContent"
+                      Visibility="{Binding IsDayContentVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="DayPanelHeader" FlowDirection="{Binding ContentFlowDirection}">
+                        <Grid.Style>
+                            <Style TargetType="{x:Type Grid}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DayPanel.HasSelection}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
+                        <TextBlock x:Name="DayPanelDateTitle" Text="{Binding DayPanel.DateTitle}"
+                                   FlowDirection="{Binding ContentFlowDirection}"
+                                   TextAlignment="{Binding ContentTextAlignment}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                        <Button x:Name="DayPanelAddButton" Grid.Column="1"
+                                Style="{StaticResource FloatingToolsSharedIconButtonStyle}"
+                                Command="{Binding BeginAddEventCommand}" Content="+"
+                                ToolTip="Add event" AutomationProperties.Name="Add another event" />
+                    </Grid>
+                    <ScrollViewer x:Name="DayPanelScrollViewer" Grid.Row="1"
+                                  Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                                  controls:SmoothWheelScrollBehavior.IsEnabled="True"
+                                  Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}"
+                                  VerticalContentAlignment="Stretch"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid>
                         <TextBlock Text="{Binding DayPanel.EmptyStateText}"
                                    VerticalAlignment="Center" HorizontalAlignment="Center"
                                    Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}">
@@ -630,7 +773,7 @@
                                         <DataTrigger Binding="{Binding DayPanel.HasSelection}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsQuickAddDatePromptOpen}" Value="True">
+                                        <DataTrigger Binding="{Binding IsAddEventHintVisible}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -638,24 +781,13 @@
                             </TextBlock.Style>
                         </TextBlock>
 
-                        <StackPanel Visibility="{Binding IsQuickAddDatePromptOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    FlowDirection="{Binding ContentFlowDirection}">
-                            <TextBlock Text="{Binding QuickAddDatePrompt}" FontWeight="SemiBold"
-                                       TextAlignment="{Binding ContentTextAlignment}" />
-                            <TextBox x:Name="QuickAddDateTextBox" Margin="0,7,0,0"
-                                     Style="{StaticResource FloatingToolsSharedTextBoxStyle}"
-                                     Text="{Binding QuickAddDateText, UpdateSourceTrigger=PropertyChanged}"
-                                     PreviewKeyDown="QuickAddDateTextBox_OnPreviewKeyDown"
-                                     ToolTip="Date" />
-                            <TextBlock Margin="0,4,0,0" Text="{Binding QuickAddValidationMessage}"
-                                       Foreground="{DynamicResource FloatingToolsBrushStatusError}" FontSize="11" TextWrapping="Wrap" />
-                            <StackPanel Margin="0,7,0,0" Orientation="Horizontal">
-                                <Button Style="{StaticResource FloatingToolsSharedActionButtonStyle}"
-                                        Command="{Binding ContinueQuickAddDateCommand}" Content="{Binding ContinueLabel}" />
-                                <Button Margin="6,0,0,0" Style="{StaticResource FloatingToolsSharedActionButtonStyle}"
-                                        Command="{Binding CancelQuickAddDateCommand}" Content="{Binding CancelLabel}" />
-                            </StackPanel>
-                        </StackPanel>
+                        <TextBlock x:Name="AddEventHintText"
+                                   Text="{Binding SelectDayToAddEventHint}"
+                                   Visibility="{Binding IsAddEventHintVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Margin="12,0" TextWrapping="Wrap" TextAlignment="Center"
+                                   FlowDirection="{Binding ContentFlowDirection}"
+                                   Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
 
                         <StackPanel FlowDirection="{Binding ContentFlowDirection}">
                             <StackPanel.Style>
@@ -668,18 +800,6 @@
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <Grid FlowDirection="{Binding ContentFlowDirection}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
-                                <TextBlock x:Name="DayPanelDateTitle" Text="{Binding DayPanel.DateTitle}"
-                                           FlowDirection="{Binding ContentFlowDirection}"
-                                           TextAlignment="{Binding ContentTextAlignment}"
-                                           FontWeight="SemiBold" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
-                                <Button x:Name="DayPanelAddButton" Grid.Column="1"
-                                        Style="{StaticResource FloatingToolsSharedIconButtonStyle}"
-                                        Command="{Binding BeginAddEventCommand}" Content="+"
-                                        ToolTip="Add event" AutomationProperties.Name="Add another event" />
-                            </Grid>
                             <ItemsControl Margin="0,5,0,0" ItemsSource="{Binding DayPanel.HolidayNames}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -798,13 +918,325 @@
                                        Foreground="{DynamicResource FloatingToolsBrushStatusError}" FontSize="11" TextWrapping="Wrap" />
                         </StackPanel>
                     </Grid>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </Grid>
+                <Grid x:Name="ContextualEventsPanel"
+                      Visibility="{Binding IsContextualEventsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="28" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="ContextualEventsHeader" FlowDirection="{Binding ContentFlowDirection}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="28" />
+                        </Grid.ColumnDefinitions>
+                        <Grid FlowDirection="LeftToRight">
+                            <TextBlock x:Name="ContextualEventsTitleText"
+                                       Text="{Binding ContextualEventsTitle}"
+                                       VerticalAlignment="Center"
+                                       FlowDirection="{Binding ContentFlowDirection}"
+                                       TextAlignment="{Binding ContentTextAlignment}"
+                                       Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasHebrewWeekTitle}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel x:Name="ContextualHebrewSameMonthWeekTitle"
+                                        Orientation="Horizontal" HorizontalAlignment="Right"
+                                        VerticalAlignment="Center" FlowDirection="LeftToRight"
+                                        TextElement.Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                        Opacity="1">
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHebrewSameMonthWeekTitle}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock x:Name="ContextualHebrewSameMonthWeekMonthText"
+                                           Text="{Binding HebrewWeekTitle.StartMonthText}"
+                                           FlowDirection="RightToLeft"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock Text=" " FlowDirection="LeftToRight" />
+                                <TextBlock x:Name="ContextualHebrewSameMonthWeekNumericText"
+                                           Text="{Binding HebrewWeekTitle.StartNumericText}"
+                                           FlowDirection="LeftToRight"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock x:Name="ContextualHebrewSameMonthWeekHeadingSeparatorText"
+                                           Text=" — " FlowDirection="LeftToRight"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock x:Name="ContextualHebrewSameMonthWeekHeadingText"
+                                           Text="{Binding EventsHeading}" FlowDirection="RightToLeft"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                            </StackPanel>
+                            <StackPanel x:Name="ContextualHebrewCrossMonthWeekTitle"
+                                        Orientation="Horizontal" HorizontalAlignment="Right"
+                                        VerticalAlignment="Center" FlowDirection="LeftToRight"
+                                        TextElement.Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
+                                        Opacity="1">
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHebrewCrossMonthWeekTitle}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="{Binding HebrewWeekTitle.EndMonthText}" FlowDirection="RightToLeft"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock Text=" " FlowDirection="LeftToRight" />
+                                <TextBlock Text="{Binding HebrewWeekTitle.EndNumericText}" FlowDirection="LeftToRight"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock x:Name="ContextualHebrewCrossMonthWeekRangeSeparatorText"
+                                           Text=" – " FlowDirection="LeftToRight"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock Text="{Binding HebrewWeekTitle.StartMonthText}" FlowDirection="RightToLeft"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock Text=" " FlowDirection="LeftToRight" />
+                                <TextBlock Text="{Binding HebrewWeekTitle.StartNumericText}" FlowDirection="LeftToRight"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock x:Name="ContextualHebrewCrossMonthWeekHeadingSeparatorText"
+                                           Text=" — " FlowDirection="LeftToRight"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                                <TextBlock Text="{Binding EventsHeading}" FlowDirection="RightToLeft"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
+                            </StackPanel>
+                        </Grid>
+                        <Button x:Name="ContextualEventsSortButton" Grid.Column="1" Width="26" Height="26"
+                                Style="{StaticResource FloatingToolsSharedIconButtonStyle}"
+                                Command="{Binding ContextualEventsViewModel.ToggleSortCommand}"
+                                Content="{Binding ContextualEventsViewModel.SortGlyph}"
+                                ToolTip="{Binding ContextualEventsViewModel.SortLabel}"
+                                AutomationProperties.Name="{Binding ContextualEventsViewModel.SortLabel}" />
+                        <Button x:Name="ContextualEventsCloseButton" Grid.Column="2" Content="×" Width="26" Height="26"
+                                Style="{StaticResource FloatingToolsSharedIconButtonStyle}"
+                                Command="{Binding CloseContextualEventsCommand}"
+                                ToolTip="{Binding BackToCalendarToolTip}" />
+                    </Grid>
+                    <ScrollViewer x:Name="ContextualEventsScrollViewer" Grid.Row="1"
+                                  Padding="{StaticResource FloatingToolsSpacingScrollContentGutter}"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                                  controls:SmoothWheelScrollBehavior.IsEnabled="True">
+                        <ContentControl Content="{Binding ContextualEventsViewModel}"
+                                        ContentTemplate="{StaticResource CalendarEventsListTemplate}" />
+                    </ScrollViewer>
+                </Grid>
+                </Grid>
                 </Border>
             </Grid>
         </Grid>
 
+        <Grid Grid.Row="1" Visibility="{Binding IsEventsPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <sharedControls:SettingsPageShell x:Name="CalendarEventsShell" Title="{Binding EventsHeading}"
+                                              BackCommand="{Binding BackToCalendarCommand}"
+                                              BackToolTip="{Binding BackToCalendarToolTip}"
+                                              BackAutomationName="{Binding BackToCalendarToolTip}"
+                                              BodyMargin="0"
+                                              BodyScrollMargin="8,4,4,8"
+                                              HeaderFlowDirection="{Binding ContentFlowDirection}"
+                                              TitleFlowDirection="{Binding ContentFlowDirection}"
+                                              TitleTextAlignment="{Binding ContentTextAlignment}">
+                <StackPanel FlowDirection="{Binding ContentFlowDirection}">
+                    <Grid x:Name="FullEventsToolbar" Margin="0,2,0,8" SizeChanged="FullEventsToolbar_OnSizeChanged">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="FlowDirection" Value="{Binding ContentFlowDirection}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                        <Setter Property="FlowDirection" Value="LeftToRight" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="FullEventsSearchButton" Width="30" Height="30" Padding="0"
+                                FontFamily="Segoe MDL2 Assets" Content="&#xE721;"
+                                Click="FullEventsSearchButton_OnClick"
+                                ToolTip="{Binding EventsViewModel.SearchLabel}"
+                                AutomationProperties.Name="{Binding EventsViewModel.SearchLabel}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource FloatingToolsSharedActionButtonStyle}">
+                                    <Setter Property="Grid.Column" Value="0" />
+                                    <Setter Property="Grid.ColumnSpan" Value="1" />
+                                    <Setter Property="HorizontalAlignment" Value="Center" />
+                                    <Setter Property="Margin" Value="0,0,6,0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                            <Setter Property="Grid.ColumnSpan" Value="3" />
+                                            <Setter Property="HorizontalAlignment" Value="Right" />
+                                            <Setter Property="Margin" Value="4,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Grid x:Name="FullEventsSearchHost" Grid.Column="1" Margin="0,0,6,0" Visibility="Collapsed">
+                            <TextBox x:Name="FullEventsSearchTextBox" Padding="7,0,30,0"
+                                     Style="{StaticResource FullEventsFilledSearchStyle}"
+                                     controls:TextBoxWatermark.Text="{Binding EventsViewModel.SearchLabel}"
+                                     Text="{Binding EventsViewModel.SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{Binding EventsViewModel.SearchLabel}"
+                                     AutomationProperties.Name="{Binding EventsViewModel.SearchLabel}" />
+                            <Button x:Name="FullEventsCloseSearchButton" Content="×" Width="26" Height="26"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0"
+                                    Style="{StaticResource FloatingToolsSharedActionButtonStyle}"
+                                    Click="FullEventsCloseSearchButton_OnClick"
+                                    ToolTip="{Binding EventsViewModel.CloseSearchLabel}"
+                                    AutomationProperties.Name="{Binding EventsViewModel.CloseSearchLabel}" />
+                        </Grid>
+                        <Grid x:Name="FullEventsFilterControls">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Grid.Column" Value="2" />
+                                    <Setter Property="Grid.ColumnSpan" Value="1" />
+                                    <Setter Property="FlowDirection" Value="{Binding ContentFlowDirection}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                            <Setter Property="Grid.Column" Value="0" />
+                                            <Setter Property="Grid.ColumnSpan" Value="3" />
+                                            <Setter Property="FlowDirection" Value="LeftToRight" />
+                                            <Setter Property="Margin" Value="4,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition>
+                                    <ColumnDefinition.Style>
+                                        <Style TargetType="ColumnDefinition">
+                                            <Setter Property="Width" Value="Auto" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                                    <Setter Property="Width" Value="*" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ColumnDefinition.Style>
+                                </ColumnDefinition>
+                                <ColumnDefinition>
+                                    <ColumnDefinition.Style>
+                                        <Style TargetType="ColumnDefinition">
+                                            <Setter Property="Width" Value="0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                                    <Setter Property="Width" Value="Auto" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ColumnDefinition.Style>
+                                </ColumnDefinition>
+                                <ColumnDefinition>
+                                    <ColumnDefinition.Style>
+                                        <Style TargetType="ColumnDefinition">
+                                            <Setter Property="Width" Value="0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                                    <Setter Property="Width" Value="*" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ColumnDefinition.Style>
+                                </ColumnDefinition>
+                                <ColumnDefinition>
+                                    <ColumnDefinition.Style>
+                                        <Style TargetType="ColumnDefinition">
+                                            <Setter Property="Width" Value="0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                                    <Setter Property="Width" Value="30" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ColumnDefinition.Style>
+                                </ColumnDefinition>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel x:Name="FullEventsPresetControls" Orientation="Horizontal"
+                                        HorizontalAlignment="Center" FlowDirection="{Binding ContentFlowDirection}">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Grid.Column" Value="0" />
+                                        <Setter Property="Margin" Value="0,0,6,0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                                <Setter Property="Grid.Column" Value="2" />
+                                                <Setter Property="Margin" Value="0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock x:Name="FullEventsFilterLabel" Text="{Binding EventsViewModel.FilterLabel}"
+                                           FontSize="10" Margin="0,0,3,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <ComboBox x:Name="FullEventsPresetComboBox" Width="136" FontSize="11"
+                                          Style="{StaticResource FullEventsFilledFilterStyle}"
+                                          ItemsSource="{Binding EventsViewModel.PresetChoices}"
+                                          SelectedValuePath="Value" SelectedValue="{Binding EventsViewModel.SelectedPreset}"
+                                          ToolTip="{Binding EventsViewModel.FilterLabel}"
+                                          AutomationProperties.Name="{Binding EventsViewModel.FilterLabel}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="Normal" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <Button x:Name="FullEventsSortButton" Width="28" Height="30" Padding="0"
+                                    HorizontalAlignment="Center"
+                                    Command="{Binding EventsViewModel.ToggleSortCommand}"
+                                    Content="{Binding EventsViewModel.SortGlyph}" ToolTip="{Binding EventsViewModel.SortLabel}"
+                                    AutomationProperties.Name="{Binding EventsViewModel.SortLabel}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource FloatingToolsSharedActionButtonStyle}">
+                                        <Setter Property="Grid.Column" Value="1" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Visibility, ElementName=FullEventsSearchHost}" Value="Collapsed">
+                                                <Setter Property="Grid.Column" Value="0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                    <Border x:Name="FullEventsToolbarDivider" Height="1" Margin="0,0,0,6"
+                            Background="{DynamicResource FloatingToolsBrushBorderDivider}" />
+                    <ContentControl x:Name="FullEventsResults" Content="{Binding EventsViewModel}" ContentTemplate="{StaticResource CalendarEventsListTemplate}" />
+                </StackPanel>
+            </sharedControls:SettingsPageShell>
+        </Grid>
+
         <Grid Grid.Row="1" Visibility="{Binding IsSettingsPage, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <sharedControls:SettingsPageShell Title="{Binding CalendarSettingsTitle}"
+            <sharedControls:SettingsPageShell x:Name="CalendarSettingsShell" Title="{Binding CalendarSettingsTitle}"
                                               BackCommand="{Binding BackToCalendarCommand}"
                                               BackToolTip="Back"
                                               BackAutomationName="Back to Calendar"
@@ -861,33 +1293,19 @@
                                FlowDirection="{Binding ContentFlowDirection}"
                                TextAlignment="{Binding ContentTextAlignment}" />
                 </Button>
+                <Button Style="{StaticResource CalendarMenuItemButtonStyle}"
+                        FlowDirection="{Binding ContentFlowDirection}"
+                        Command="{Binding BeginQuickAddCommand}"
+                        Content="{Binding AddEventMenuLabel}"
+                        AutomationProperties.Name="{Binding AddEventMenuLabel}" />
                 <Grid Margin="10,2">
                     <TextBox x:Name="CalendarSearchTextBox"
-                             Style="{StaticResource CalendarSingleLineInputStyle}"
+                             Style="{StaticResource CalendarMenuSearchStyle}"
+                             controls:TextBoxWatermark.Text="{Binding SearchPlaceholder}"
                              FlowDirection="{Binding ContentFlowDirection}"
-                             TextAlignment="{Binding ContentTextAlignment}"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              PreviewKeyDown="CalendarSearchTextBox_OnPreviewKeyDown"
                              AutomationProperties.Name="Search Calendar" />
-                    <TextBlock Margin="9,0" VerticalAlignment="Center"
-                               IsHitTestVisible="False" Text="{Binding SearchPlaceholder}"
-                               FlowDirection="{Binding ContentFlowDirection}"
-                               TextAlignment="{Binding ContentTextAlignment}"
-                               Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}">
-                        <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SearchText}" Value="">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
                 </Grid>
                 <TextBlock Margin="12,0,12,1" Text="{Binding SearchValidationMessage}"
                            FlowDirection="{Binding ContentFlowDirection}"
@@ -936,6 +1354,10 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
+                <Button Style="{StaticResource CalendarMenuItemButtonStyle}"
+                        FlowDirection="{Binding ContentFlowDirection}"
+                        Command="{Binding OpenEventsCommand}" Content="{Binding EventsHeading}"
+                        AutomationProperties.Name="{Binding EventsHeading}" />
                 <Button Style="{StaticResource CalendarMenuItemButtonStyle}"
                         FlowDirection="{Binding ContentFlowDirection}"
                         Command="{Binding OpenSettingsCommand}" Content="{Binding SettingsLabel}"

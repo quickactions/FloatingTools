@@ -141,6 +141,45 @@ public sealed class CalendarDirectionRuntimeTests
         });
 
     [Fact]
+    public void HebrewContextualWeekTitleUsesSeparateFragmentsInVerifiedPhysicalOrder()
+        => RunSta(() =>
+        {
+            using var fixture = CreateWeekFixture(
+                CalendarLanguageMode.Hebrew, new DateOnly(2026, 8, 26));
+            fixture.ViewModel.OpenContextualEventsCommand.Execute(null);
+            fixture.Window.UpdateLayout();
+            var panel = FindNamed<StackPanel>(
+                fixture.View, "ContextualHebrewSameMonthWeekTitle");
+            var month = FindNamed<TextBlock>(
+                fixture.View, "ContextualHebrewSameMonthWeekMonthText");
+            var numeric = FindNamed<TextBlock>(
+                fixture.View, "ContextualHebrewSameMonthWeekNumericText");
+            var heading = FindNamed<TextBlock>(
+                fixture.View, "ContextualHebrewSameMonthWeekHeadingText");
+            var headingSeparator = FindNamed<TextBlock>(
+                fixture.View, "ContextualHebrewSameMonthWeekHeadingSeparatorText");
+
+            Assert.Equal(Visibility.Visible, panel.Visibility);
+            Assert.Equal(FlowDirection.LeftToRight, panel.FlowDirection);
+            Assert.Equal("באוג׳", month.Text);
+            Assert.Equal("23–29", numeric.Text);
+            Assert.Equal("אירועים", heading.Text);
+            Assert.Equal(
+                Assert.IsType<SolidColorBrush>(heading.Foreground).Color,
+                Assert.IsType<SolidColorBrush>(headingSeparator.Foreground).Color);
+
+            var monthLeft = month.TranslatePoint(new Point(), panel).X;
+            var numericLeft = numeric.TranslatePoint(new Point(), panel).X;
+            var headingLeft = heading.TranslatePoint(new Point(), panel).X;
+            Assert.True(monthLeft < numericLeft,
+                $"Month fragment {monthLeft} should render left of numeric fragment {numericLeft}.");
+            Assert.True(numericLeft < headingLeft,
+                $"Numeric fragment {numericLeft} should render left of heading {headingLeft}.");
+            Assert.True(panel.ActualWidth > 0);
+            Assert.True(panel.ActualHeight > 0);
+        });
+
+    [Fact]
     public void CalendarStageThreeView_LoadsAtStandardSizeWithBoundRuntimeCollections()
         => RunSta(() =>
         {

@@ -23,10 +23,12 @@ public sealed class CalendarFocusedCorrectionUiContractTests
         Assert.Equal("Bottom", (string?)overlay.Attribute("VerticalAlignment"));
         Assert.Equal("10", (string?)overlay.Attribute("Panel.ZIndex"));
         Assert.Equal("17", (string?)splitter.Attribute("Height"));
-        Assert.Equal("106", (string?)expanded.Attribute("Height"));
-        Assert.Equal("92", (string?)expanded.Attribute("MinHeight"));
-        Assert.Equal("268", (string?)expanded.Attribute("MaxHeight"));
-        Assert.Equal("{Binding IsDayPanelExpanded, Converter={StaticResource BooleanToVisibilityConverter}}",
+        Assert.Null(expanded.Attribute("Height"));
+        Assert.Null(expanded.Attribute("MaxHeight"));
+        Assert.Contains("CalendarDayPanelMinimumHeightConverter", expanded.ToString());
+        Assert.Contains("Path=\"LayoutMode\"", expanded.ToString());
+        Assert.Contains("Path=\"IsEventEditorOpen\"", expanded.ToString());
+        Assert.Equal("{Binding IsCompactPanelExpanded, Converter={StaticResource BooleanToVisibilityConverter}}",
             (string?)expanded.Attribute("Visibility"));
         Assert.Equal("DayPanelSplitter_OnDragDelta", (string?)splitter.Attribute("DragDelta"));
         Assert.Equal("DayPanelSplitter_OnPreviewMouseLeftButtonUp",
@@ -40,10 +42,17 @@ public sealed class CalendarFocusedCorrectionUiContractTests
     public void DayPanelHeaderMirrorsOnlyItsPlacementRowAndKeepsExplicitTextDirection()
     {
         var document = LoadView();
+        var header = Named(document, "Grid", "DayPanelHeader");
+        var scroller = Named(document, "ScrollViewer", "DayPanelScrollViewer");
         var title = Named(document, "TextBlock", "DayPanelDateTitle");
         var add = Named(document, "Button", "DayPanelAddButton");
         var row = title.Parent!;
 
+        Assert.Same(header, row);
+        Assert.DoesNotContain(header.Ancestors(), ancestor => ReferenceEquals(ancestor, scroller));
+        Assert.Equal("1", (string?)scroller.Attribute("Grid.Row"));
+        Assert.Single(document.Descendants(Presentation + "Button"), button =>
+            (string?)button.Attribute(X + "Name") == "DayPanelAddButton");
         Assert.Equal("LeftToRight", (string?)document.Root!.Attribute("FlowDirection"));
         Assert.Equal("{Binding ContentFlowDirection}", (string?)row.Attribute("FlowDirection"));
         Assert.Equal("{Binding ContentFlowDirection}", (string?)title.Attribute("FlowDirection"));
@@ -138,7 +147,8 @@ public sealed class CalendarFocusedCorrectionUiContractTests
     {
         var document = LoadView();
         var settingsShell = document.Descendants()
-            .Single(element => element.Name.LocalName == "SettingsPageShell");
+            .Single(element => element.Name.LocalName == "SettingsPageShell"
+                && (string?)element.Attribute("Title") == "{Binding CalendarSettingsTitle}");
         var settingLabels = new[]
         {
             "{Binding LanguageLabel}",
@@ -167,7 +177,9 @@ public sealed class CalendarFocusedCorrectionUiContractTests
         Assert.All(settingLabels, label => Assert.Equal(
             "{DynamicResource FloatingToolsBrushForegroundSecondary}",
             (string?)label.Attribute("Foreground")));
-        Assert.Equal("{StaticResource CalendarSingleLineInputStyle}",
+        // The menu search moved onto the shared search family in Stage 1.5;
+        // CalendarSingleLineInputStyle stays behind for the event editor.
+        Assert.Equal("{StaticResource CalendarMenuSearchStyle}",
             (string?)search.Attribute("Style"));
         Assert.Equal("{Binding ContentFlowDirection}", (string?)search.Attribute("FlowDirection"));
         Assert.Equal("{Binding ContentFlowDirection}", (string?)today.Attribute("FlowDirection"));
@@ -208,6 +220,13 @@ public sealed class CalendarFocusedCorrectionUiContractTests
         Assert.Equal("Disabled", (string?)monthScroller.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("{Binding ActualHeight, ElementName=CalendarPeriodRegion}",
             (string?)monthLayer.Attribute("Height"));
+        // No wide-only sizing on the month grid: it stretches to its container
+        // and divides the region height, at every panel width.
+        Assert.Null(monthLayer.Attribute("Width"));
+        Assert.Null(monthLayer.Attribute("MaxWidth"));
+        Assert.Null(monthLayer.Attribute("MaxHeight"));
+        Assert.Null(monthLayer.Attribute("Margin"));
+        Assert.Null(monthLayer.Attribute("HorizontalAlignment"));
         Assert.Contains(monthItems.Ancestors(), ancestor => ReferenceEquals(ancestor, period));
         Assert.Contains(weekItems.Ancestors(), ancestor => ReferenceEquals(ancestor, period));
         Assert.Equal((string?)period.Attribute("Grid.Row"), (string?)overlay.Attribute("Grid.Row"));

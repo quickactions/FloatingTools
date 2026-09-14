@@ -4,6 +4,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using FloatingTools.App.Models;
+using FloatingTools.App.Services;
 using FloatingTools.App.SharedUi.Popups;
 using FloatingTools.App.ViewModels;
 
@@ -14,6 +16,9 @@ public partial class CalendarToolView : UserControl
     private readonly PopupAnchorService _popupAnchorService;
     private CalendarToolViewModel? _viewModel;
     private bool _dayPanelHandleDragged;
+    private bool _hasUserSizedDayPanel;
+    private double _userDayPanelHeight;
+    private bool _isFullEventsSearchOpen;
 
     public CalendarToolView()
     {
@@ -22,13 +27,29 @@ public partial class CalendarToolView : UserControl
         DataContextChanged += OnDataContextChanged;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        SizeChanged += CalendarToolView_OnSizeChanged;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e) =>
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
         Subscribe(DataContext as CalendarToolViewModel);
+        UpdateCalendarLayout();
+        UpdateDayPanelSizing();
+    }
 
     public void FocusSearch()
     {
+        if (DataContext is CalendarToolViewModel { IsEventsPage: true })
+        {
+            _isFullEventsSearchOpen = true;
+            UpdateFullEventsToolbar();
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                FullEventsSearchTextBox.Focus();
+                FullEventsSearchTextBox.SelectAll();
+            });
+            return;
+        }
         if (DataContext is CalendarToolViewModel { IsHeaderExpanded: false } viewModel)
         {
             viewModel.ToggleHeaderCommand.Execute(null);
@@ -67,6 +88,7 @@ public partial class CalendarToolView : UserControl
 
         _viewModel = viewModel;
         _viewModel.EntryVisibilityRequested += OnEntryVisibilityRequested;
+        _viewModel.SetLayoutMode(CalendarLayoutModeResolver.Resolve(ActualWidth));
     }
 
     private void Unsubscribe()
@@ -141,6 +163,46 @@ public partial class CalendarToolView : UserControl
         }
     }
 
+    private void ContextualEventRow_OnMouseLeftButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2
+            || sender is not FrameworkElement { DataContext: CalendarEventListItemViewModel item }
+            || e.OriginalSource is DependencyObject source
+                && HasButtonAncestor(source, (DependencyObject)sender))
+        {
+            return;
+        }
+
+        var events = (_viewModel ?? DataContext as CalendarToolViewModel) is { } owner
+            ? owner.IsEventsPage ? owner.EventsViewModel : owner.ContextualEventsViewModel
+            : null;
+        if (events?.ActivateEventCommand.CanExecute(item) == true)
+        {
+            events.ActivateEventCommand.Execute(item);
+            e.Handled = true;
+        }
+    }
+
+    private static bool HasButtonAncestor(DependencyObject source, DependencyObject boundary)
+    {
+        for (var current = source; current is not null; current = GetParent(current))
+        {
+            if (current is ButtonBase)
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(current, boundary))
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
     private static bool HasInteractiveAncestor(
         DependencyObject source,
         DependencyObject boundary)
@@ -177,6 +239,80 @@ public partial class CalendarToolView : UserControl
             ? VisualTreeHelper.GetParent(value)
             : LogicalTreeHelper.GetParent(value);
 
+    private void CalendarToolView_OnSizeChanged(object sender, SizeChangedEventArgs e) => UpdateCalendarLayout();
+
+    private void CalendarPeriodRegion_OnSizeChanged(object sender, SizeChangedEventArgs e) =>
+        UpdateDayPanelSizing();
+
+    private void FullEventsToolbar_OnSizeChanged(object sender, SizeChangedEventArgs e) => UpdateFullEventsToolbar();
+
+    private void UpdateCalendarLayout()
+    {
+        var layoutMode = CalendarLayoutModeResolver.Resolve(ActualWidth);
+        (_viewModel ?? DataContext as CalendarToolViewModel)?.SetLayoutMode(layoutMode);
+        UpdateDayPanelSizing();
+        UpdateFullEventsToolbar();
+    }
+
+    private void UpdateDayPanelSizing()
+    {
+        var regionHeight = CalendarPeriodRegion.ActualHeight;
+        if (regionHeight <= 0)
+        {
+            return;
+        }
+
+        var maximumHeight = CalendarDayPanelSizing.GetMaximumHeight(regionHeight);
+        var layoutMode = CalendarLayoutModeResolver.Resolve(ActualWidth);
+        var minimumHeight = CalendarDayPanelSizing.GetMinimumHeight(
+            layoutMode,
+            (_viewModel ?? DataContext as CalendarToolViewModel)?.IsEventEditorOpen == true);
+        DayPanelExpandedContent.MaxHeight = Math.Max(
+            maximumHeight,
+            minimumHeight);
+        if (_hasUserSizedDayPanel)
+        {
+            _userDayPanelHeight = CalendarDayPanelSizing.Clamp(
+                _userDayPanelHeight,
+                maximumHeight,
+                minimumHeight);
+            DayPanelExpandedContent.Height = _userDayPanelHeight;
+            return;
+        }
+
+        DayPanelExpandedContent.Height = CalendarDayPanelSizing.GetDefaultHeight(
+            regionHeight,
+            layoutMode);
+    }
+
+    private void UpdateFullEventsToolbar()
+    {
+        if (FullEventsSearchHost is null || FullEventsFilterControls is null) return;
+        var wide = CalendarLayoutModeResolver.Resolve(ActualWidth) == CalendarLayoutMode.Large;
+        var hasQuery = (DataContext as CalendarToolViewModel)?.EventsViewModel?.SearchText.Length > 0;
+        var searchVisible = wide || _isFullEventsSearchOpen || hasQuery;
+        FullEventsSearchButton.Visibility = wide ? Visibility.Collapsed : Visibility.Visible;
+        FullEventsSearchHost.Visibility = searchVisible ? Visibility.Visible : Visibility.Collapsed;
+        FullEventsFilterControls.Visibility = wide || !searchVisible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void FullEventsSearchButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (FullEventsSearchHost.IsVisible) CloseFullEventsSearch();
+        else FocusSearch();
+    }
+
+    private void FullEventsCloseSearchButton_OnClick(object sender, RoutedEventArgs e) => CloseFullEventsSearch();
+
+    private void CloseFullEventsSearch()
+    {
+        if (DataContext is CalendarToolViewModel { EventsViewModel: { } events }) events.SearchText = string.Empty;
+        _isFullEventsSearchOpen = false;
+        UpdateFullEventsToolbar();
+        if (FullEventsSearchButton.IsVisible) FullEventsSearchButton.Focus();
+        else FullEventsSearchTextBox.Focus();
+    }
+
     private void CalendarSearchTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
@@ -190,27 +326,6 @@ public partial class CalendarToolView : UserControl
         }
 
         e.Handled = true;
-    }
-
-    private void QuickAddDateTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (_viewModel is null)
-        {
-            return;
-        }
-
-        if (e.Key == Key.Enter
-            && _viewModel.ContinueQuickAddDateCommand.CanExecute(null))
-        {
-            _viewModel.ContinueQuickAddDateCommand.Execute(null);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape
-            && _viewModel.CancelQuickAddDateCommand.CanExecute(null))
-        {
-            _viewModel.CancelQuickAddDateCommand.Execute(null);
-            e.Handled = true;
-        }
     }
 
     private void EventEditorTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -254,16 +369,23 @@ public partial class CalendarToolView : UserControl
 
     private void DayPanelSplitter_OnDragDelta(object sender, DragDeltaEventArgs e)
     {
-        if ((_viewModel ?? DataContext as CalendarToolViewModel)?.IsDayPanelExpanded != true)
+        if ((_viewModel ?? DataContext as CalendarToolViewModel)?.IsCompactPanelExpanded != true)
         {
             return;
         }
 
         _dayPanelHandleDragged = true;
-        DayPanelExpandedContent.Height = Math.Clamp(
+        var layoutMode = CalendarLayoutModeResolver.Resolve(ActualWidth);
+        var minimumHeight = CalendarDayPanelSizing.GetMinimumHeight(
+            layoutMode,
+            (_viewModel ?? DataContext as CalendarToolViewModel)?.IsEventEditorOpen == true);
+        var requestedHeight = CalendarDayPanelSizing.Clamp(
             DayPanelExpandedContent.ActualHeight - e.VerticalChange,
-            DayPanelExpandedContent.MinHeight,
-            DayPanelExpandedContent.MaxHeight);
+            CalendarDayPanelSizing.GetMaximumHeight(CalendarPeriodRegion.ActualHeight),
+            minimumHeight);
+        _hasUserSizedDayPanel = true;
+        _userDayPanelHeight = requestedHeight;
+        DayPanelExpandedContent.Height = requestedHeight;
     }
 
     private void DayPanelSplitter_OnPreviewMouseLeftButtonDown(
@@ -294,6 +416,11 @@ public partial class CalendarToolView : UserControl
     private void ToggleDayPanel()
     {
         var viewModel = _viewModel ?? DataContext as CalendarToolViewModel;
+        if (viewModel?.IsContextualEventsOpen == true)
+        {
+            viewModel.CloseContextualEventsCommand.Execute(null);
+            return;
+        }
         if (viewModel?.ToggleDayPanelCommand.CanExecute(null) == true)
         {
             viewModel.ToggleDayPanelCommand.Execute(null);

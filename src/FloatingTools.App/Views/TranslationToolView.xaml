@@ -109,6 +109,12 @@
             <Setter Property="sharedControls:TripleClickSelectAllBehavior.IsEnabled" Value="True" />
         </Style>
 
+        <!-- Alias only, so the saved-words search joins the shared search
+             family; the composer and entry text styles are untouched. -->
+        <Style x:Key="SavedWordsSearchTextBoxStyle"
+               TargetType="{x:Type TextBox}"
+               BasedOn="{StaticResource FloatingToolsSearchTextBoxStyle}" />
+
         <Style x:Key="MenuItemButtonStyle"
                TargetType="{x:Type Button}"
                BasedOn="{StaticResource FloatingToolsSharedButtonBaseStyle}">
@@ -816,37 +822,11 @@
             </Grid>
 
             <Grid Grid.Row="1" Margin="10,3,10,5">
-                <Border Background="{DynamicResource FloatingToolsBrushSurfaceInput}"
-                        BorderBrush="{DynamicResource FloatingToolsBrushBorderInput}"
-                        BorderThickness="1"
-                        CornerRadius="6">
-                    <controls:DirectionalTextBox x:Name="SavedWordsSearchTextBox"
-                             Padding="9,5"
-                             Background="Transparent"
-                             Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
-                             CaretBrush="{DynamicResource FloatingToolsBrushForegroundPrimary}"
-                             BorderThickness="0"
-                             FontSize="13"
-                             Text="{Binding SavedWords.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             AutomationProperties.Name="Search saved words" />
-                </Border>
-                <TextBlock Margin="10,0,0,0"
-                           Text="Search..."
-                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
-                           FontSize="13"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False">
-                    <TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SavedWords.SearchQuery}" Value="">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <controls:DirectionalTextBox x:Name="SavedWordsSearchTextBox"
+                         Style="{StaticResource SavedWordsSearchTextBoxStyle}"
+                         controls:TextBoxWatermark.Text="Search..."
+                         Text="{Binding SavedWords.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Search saved words" />
             </Grid>
 
             <Grid Grid.Row="2">

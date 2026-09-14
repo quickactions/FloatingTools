@@ -30,6 +30,7 @@
                 <ResourceDictionary Source="SharedUi/Styles/SettingsPageShell.xaml" />
                 <ResourceDictionary Source="SharedUi/Styles/SettingsComboBoxes.xaml" />
                 <ResourceDictionary Source="SharedUi/Styles/TextBoxes.xaml" />
+                <ResourceDictionary Source="SharedUi/Styles/Inputs.xaml" />
                 <ResourceDictionary Source="SharedUi/Styles/ToolHeader.xaml" />
                 <ResourceDictionary Source="SharedUi/Styles/Tooltips.xaml" />
                 <ResourceDictionary Source="Resources/SharedWindowStyles.xaml" />
