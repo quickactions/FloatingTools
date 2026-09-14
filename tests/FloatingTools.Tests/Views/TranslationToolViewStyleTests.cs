@@ -35,6 +35,8 @@ public sealed class TranslationToolViewStyleTests
 
         var comboStyle = FindStyle(
             sharedComboBoxes, presentation, x, "SettingsComboBoxStyle");
+        Assert.Equal("{StaticResource SettingsComboBoxStyle}",
+            (string?)FindStyle(sharedComboBoxes, presentation, x, "CompactFormComboBoxStyle").Attribute("BasedOn"));
         var passwordStyle = FindStyle(
             document, presentation, x, "SettingsPasswordBoxStyle");
 
@@ -57,7 +59,7 @@ public sealed class TranslationToolViewStyleTests
             3,
             document.Descendants(presentation + "ComboBox").Count(element =>
                 (string?)element.Attribute("Style")
-                == "{StaticResource SettingsComboBoxStyle}"));
+                == "{StaticResource CompactFormComboBoxStyle}"));
         Assert.Single(document.Descendants(presentation + "PasswordBox"));
         Assert.All(
             document.Descendants(presentation + "PasswordBox"),

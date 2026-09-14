@@ -818,7 +818,7 @@
                                TextAlignment="{Binding ContentTextAlignment}"
                                Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
                     <ComboBox x:Name="CalendarLanguageComboBox"
-                              Style="{StaticResource SettingsComboBoxStyle}"
+                              Style="{StaticResource CompactFormComboBoxStyle}"
                               ItemsSource="{Binding LanguageChoices}" SelectedValuePath="Value"
                               SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}">
                         <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
@@ -827,7 +827,7 @@
                                TextAlignment="{Binding ContentTextAlignment}"
                                Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
                     <ComboBox x:Name="CalendarDefaultViewComboBox"
-                              Style="{StaticResource SettingsComboBoxStyle}"
+                              Style="{StaticResource CompactFormComboBoxStyle}"
                               ItemsSource="{Binding ViewChoices}" SelectedValuePath="Value"
                               SelectedValue="{Binding SelectedDefaultView, Mode=TwoWay}">
                         <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
@@ -836,7 +836,7 @@
                                TextAlignment="{Binding ContentTextAlignment}"
                                Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
                     <ComboBox x:Name="CalendarFirstDayComboBox"
-                              Style="{StaticResource SettingsComboBoxStyle}"
+                              Style="{StaticResource CompactFormComboBoxStyle}"
                               ItemsSource="{Binding FirstDayChoices}" SelectedValuePath="Value"
                               SelectedValue="{Binding SelectedFirstDayOfWeek, Mode=TwoWay}">
                         <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>

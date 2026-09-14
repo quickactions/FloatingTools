@@ -90,7 +90,7 @@
                        Foreground="{DynamicResource FloatingToolsBrushForegroundSecondary}"
                        FontSize="13" />
             <ComboBox Margin="0,3,0,4"
-                      Style="{StaticResource SettingsComboBoxStyle}"
+                      Style="{StaticResource CompactFormComboBoxStyle}"
                       ItemsSource="{Binding ApplicationLanguageChoices}"
                       SelectedValuePath="Value"
                       SelectedValue="{Binding SelectedApplicationLanguage, Mode=TwoWay}">
@@ -106,7 +106,7 @@
                        FontSize="13"
                        Margin="0,8,0,0" />
             <ComboBox Margin="0,3,0,4"
-                      Style="{StaticResource SettingsComboBoxStyle}"
+                      Style="{StaticResource CompactFormComboBoxStyle}"
                       ItemsSource="{Binding AppearanceChoices}"
                       SelectedValuePath="Value"
                       SelectedValue="{Binding SelectedAppearance, Mode=TwoWay}">
@@ -249,7 +249,7 @@
                        FontSize="13"
                        Margin="0,8,0,0" />
             <ComboBox Margin="0,3,0,4"
-                      Style="{StaticResource SettingsComboBoxStyle}"
+                      Style="{StaticResource CompactFormComboBoxStyle}"
                       ItemsSource="{Binding ApplicationDefaultModelOptions}"
                       SelectedValuePath="Model"
                       SelectedValue="{Binding SelectedApplicationDefaultModel, Mode=TwoWay}">

@@ -430,7 +430,7 @@
                     <CheckBox Content="Use app credentials" Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
                               IsChecked="{Binding Settings.UseAppCredentials, Mode=TwoWay}" />
                     <TextBlock Text="Model" Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" Margin="0,10,0,3" />
-                    <ComboBox Style="{StaticResource SettingsComboBoxStyle}"
+                    <ComboBox Style="{StaticResource CompactFormComboBoxStyle}"
                               ItemsSource="{Binding Settings.ModelOptions}"
                               SelectedValuePath="Model"
                               SelectedValue="{Binding Settings.SelectedModel, Mode=TwoWay}">

@@ -1151,7 +1151,7 @@
                                FontSize="13"
                                Margin="0,4,0,0" />
                     <ComboBox Margin="0,3,0,4"
-                              Style="{StaticResource SettingsComboBoxStyle}"
+                              Style="{StaticResource CompactFormComboBoxStyle}"
                               ItemsSource="{Binding Settings.TranslationModelOptions}"
                               SelectedValuePath="Model"
                               SelectedValue="{Binding Settings.SelectedTranslationAiModel, Mode=TwoWay}">
@@ -1314,7 +1314,7 @@
                                Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
                                FontSize="13" />
                     <ComboBox Margin="0,3,0,0"
-                              Style="{StaticResource SettingsComboBoxStyle}"
+                              Style="{StaticResource CompactFormComboBoxStyle}"
                               ItemsSource="{Binding Settings.LanguageModes}"
                               SelectedValuePath="Value"
                               SelectedValue="{Binding Settings.SelectedLanguageMode, Mode=TwoWay}">
@@ -1333,7 +1333,7 @@
                                Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}"
                                FontSize="13" />
                     <ComboBox Margin="0,3,0,5"
-                              Style="{StaticResource SettingsComboBoxStyle}"
+                              Style="{StaticResource CompactFormComboBoxStyle}"
                               ItemsSource="{Binding Settings.SupportedHistoryLimits}"
                               SelectedItem="{Binding Settings.SelectedHistoryLimit, Mode=TwoWay}" />
                     <Button Height="30"

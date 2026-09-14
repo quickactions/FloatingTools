@@ -137,4 +137,10 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <!-- Opt-in for selects in vertical settings forms, not search or editor controls. -->
+    <Style x:Key="CompactFormComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource SettingsComboBoxStyle}">
+        <Setter Property="Width" Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}" />
+        <Setter Property="MaxWidth" Value="300" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
 </ResourceDictionary>

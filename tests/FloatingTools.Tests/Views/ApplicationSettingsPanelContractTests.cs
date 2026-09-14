@@ -93,7 +93,7 @@ public sealed class ApplicationSettingsPanelContractTests
             "{Binding SelectedApplicationDefaultModel, Mode=TwoWay}",
             (string?)model.Attribute("SelectedValue"));
         Assert.Equal(
-            "{StaticResource SettingsComboBoxStyle}",
+            "{StaticResource CompactFormComboBoxStyle}",
             (string?)model.Attribute("Style"));
         Assert.Equal(
             "{Binding DisplayName}",
@@ -108,7 +108,7 @@ public sealed class ApplicationSettingsPanelContractTests
             "{Binding SelectedApplicationLanguage, Mode=TwoWay}",
             (string?)language.Attribute("SelectedValue"));
         Assert.Equal(
-            "{StaticResource SettingsComboBoxStyle}",
+            "{StaticResource CompactFormComboBoxStyle}",
             (string?)language.Attribute("Style"));
     }
 
@@ -129,7 +129,7 @@ public sealed class ApplicationSettingsPanelContractTests
             "{Binding SelectedAppearance, Mode=TwoWay}",
             (string?)appearance.Attribute("SelectedValue"));
         Assert.Equal(
-            "{StaticResource SettingsComboBoxStyle}",
+            "{StaticResource CompactFormComboBoxStyle}",
             (string?)appearance.Attribute("Style"));
         Assert.Equal(
             "{Binding DisplayName}",
