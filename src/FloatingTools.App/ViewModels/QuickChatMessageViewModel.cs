@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using FloatingTools.App.Models;
+using FloatingTools.App.Services;
 using FloatingTools.App.SharedUi.Direction;
 using System.Text;
 using System.Windows;
@@ -42,6 +43,10 @@ public sealed class QuickChatPendingAttachmentViewModel(
 
 public sealed class QuickChatMessageViewModel : ObservableObject
 {
+    private sealed record LogicalParagraphRun(
+        string Text,
+        TextDirectionResolution Direction);
+
     private readonly Func<string, string> _resolveRuntimePath;
     private string? _text;
     private QuickChatMessageStatus? _status;
@@ -180,34 +185,43 @@ public sealed class QuickChatMessageViewModel : ObservableObject
             return [];
         }
 
-        // Adjacent non-empty source lines remain one logical WPF text flow. Empty
-        // source lines delimit paragraphs and remain explicit spacing units.
+        // Empty source lines delimit paragraphs and remain explicit spacing units.
+        // Within each group, adjacent lines stay together until their first-strong
+        // directions differ; neutral lines remain part of the surrounding run.
         var normalized = text
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
         return SplitLogicalParagraphs(normalized)
-            .Select(paragraph =>
-            {
-                var resolution = TextDirectionResolver.Resolve(paragraph);
-                return new QuickChatParagraphPresentation(
-                    NormalizePresentationMarkdown(paragraph),
-                    resolution.ToFlowDirection(),
-                    resolution.ToPhysicalTextAlignment());
-            })
+            .Select(run => new QuickChatParagraphPresentation(
+                NormalizePresentationMarkdown(run.Text),
+                run.Direction.ToFlowDirection(),
+                run.Direction.ToPhysicalTextAlignment()))
             .ToArray();
     }
 
-    private static IReadOnlyList<string> SplitLogicalParagraphs(string text)
+    private static IReadOnlyList<LogicalParagraphRun> SplitLogicalParagraphs(string text)
     {
-        var paragraphs = new List<string>();
+        var paragraphs = new List<LogicalParagraphRun>();
         var current = new StringBuilder();
+        var currentDirection = TextDirectionResolver.Resolve(null);
         foreach (var line in text.Split('\n'))
         {
             if (line.Length == 0)
             {
                 FlushCurrentParagraph();
-                paragraphs.Add(string.Empty);
+                paragraphs.Add(new LogicalParagraphRun(
+                    string.Empty,
+                    TextDirectionResolver.Resolve(string.Empty)));
                 continue;
+            }
+
+            var lineDirection = QuickChatLineDirectionResolver.Resolve(line);
+            if (current.Length > 0
+                && currentDirection.Direction != TextDirection.Neutral
+                && lineDirection.Direction != TextDirection.Neutral
+                && lineDirection.Direction != currentDirection.Direction)
+            {
+                FlushCurrentParagraph();
             }
 
             if (current.Length > 0)
@@ -216,6 +230,11 @@ public sealed class QuickChatMessageViewModel : ObservableObject
             }
 
             current.Append(line);
+            if (currentDirection.Direction == TextDirection.Neutral
+                && lineDirection.Direction != TextDirection.Neutral)
+            {
+                currentDirection = lineDirection;
+            }
         }
 
         FlushCurrentParagraph();
@@ -228,8 +247,11 @@ public sealed class QuickChatMessageViewModel : ObservableObject
                 return;
             }
 
-            paragraphs.Add(current.ToString());
+            paragraphs.Add(new LogicalParagraphRun(
+                current.ToString(),
+                currentDirection));
             current.Clear();
+            currentDirection = TextDirectionResolver.Resolve(null);
         }
     }
 

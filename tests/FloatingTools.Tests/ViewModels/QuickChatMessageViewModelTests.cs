@@ -124,6 +124,146 @@ public sealed class QuickChatMessageViewModelTests
         Assert.Equal(FlowDirection.RightToLeft, paragraph.FlowDirection);
     }
 
+    [Fact]
+    public void MixedDirectionHardLines_SplitIntoSeparateParagraphs()
+    {
+        var presentation = new QuickChatMessageViewModel(
+            Message("שורה עברית\nEnglish line\nשורה עברית נוספת"));
+
+        Assert.Equal(
+            ["שורה עברית", "English line", "שורה עברית נוספת"],
+            presentation.Paragraphs.Select(item => item.Text));
+        Assert.Equal(
+            [FlowDirection.RightToLeft, FlowDirection.LeftToRight, FlowDirection.RightToLeft],
+            presentation.Paragraphs.Select(item => item.FlowDirection));
+    }
+
+    [Theory]
+    [InlineData("שורה עברית\n123\nעוד עברית", "שורה עברית\n123\nעוד עברית")]
+    [InlineData("1.\nשורה עברית", "1.\nשורה עברית")]
+    public void NeutralHardLine_JoinsSurroundingDirectionRun(string text, string expected)
+    {
+        var presentation = new QuickChatMessageViewModel(Message(text));
+
+        var paragraph = Assert.Single(presentation.Paragraphs);
+        Assert.Equal(expected, paragraph.Text);
+        Assert.Equal(FlowDirection.RightToLeft, paragraph.FlowDirection);
+    }
+
+    [Fact]
+    public void MixedBulletList_SplitsAtDirectionChangeOnly()
+    {
+        var presentation = new QuickChatMessageViewModel(
+            Message("- פריט עברי\n- English item\n- פריט עברי נוסף"));
+
+        Assert.Equal(
+            ["• פריט עברי", "• English item", "• פריט עברי נוסף"],
+            presentation.Paragraphs.Select(item => item.Text));
+        Assert.Equal(
+            [FlowDirection.RightToLeft, FlowDirection.LeftToRight, FlowDirection.RightToLeft],
+            presentation.Paragraphs.Select(item => item.FlowDirection));
+    }
+
+    [Fact]
+    public void StreamingNeutralLineBecomesEnglishAfterHebrew()
+    {
+        var message = Message("שורה עברית\n------");
+        var presentation = new QuickChatMessageViewModel(message);
+
+        var initial = Assert.Single(presentation.Paragraphs);
+        Assert.Equal("שורה עברית\n------", initial.Text);
+        Assert.Equal(FlowDirection.RightToLeft, initial.FlowDirection);
+
+        message.Text = "שורה עברית\n------ English";
+        presentation.UpdateFrom(message);
+
+        Assert.Equal(["שורה עברית", "------ English"],
+            presentation.Paragraphs.Select(item => item.Text));
+        Assert.Equal(FlowDirection.LeftToRight, presentation.Paragraphs[1].FlowDirection);
+
+        message.Text += " עברית";
+        presentation.UpdateFrom(message);
+
+        Assert.Equal(["שורה עברית", "------ English עברית"],
+            presentation.Paragraphs.Select(item => item.Text));
+        Assert.Equal(FlowDirection.LeftToRight, presentation.Paragraphs[1].FlowDirection);
+    }
+
+    [Fact]
+    public void ScreenshotStyleFirefoxResponse_UsesLineDirectionsAndPreservesSpacing()
+    {
+        var presentation = new QuickChatMessageViewModel(Message(
+            "### צילום מסך ב-Firefox\n\n" +
+            "- Alt + Shift + T פותח כלי צילום מסך מהיר בעברית\n" +
+            "- Ctrl + Alt + T אינו קיצור ברירת המחדל של Firefox.\n\n" +
+            "1. לחצי על Ctrl + Shift + S"));
+
+        Assert.Equal(
+            [
+                "### צילום מסך ב-Firefox",
+                "",
+                "• Alt + Shift + T פותח כלי צילום מסך מהיר בעברית\n" +
+                "• Ctrl + Alt + T אינו קיצור ברירת המחדל של Firefox.",
+                "",
+                "1. לחצי על Ctrl + Shift + S"
+            ],
+            presentation.Paragraphs.Select(item => item.Text));
+        Assert.All(
+            presentation.Paragraphs.Where(item => item.Text.Length > 0),
+            item => Assert.Equal(FlowDirection.RightToLeft, item.FlowDirection));
+    }
+
+    [Fact]
+    public void LatinFirstHebrewBullet_IsRightToLeft()
+    {
+        var presentation = new QuickChatMessageViewModel(
+            Message("- Windows מאפשר צילום מסך מהיר"));
+
+        var paragraph = Assert.Single(presentation.Paragraphs);
+        Assert.Equal("• Windows מאפשר צילום מסך מהיר", paragraph.Text);
+        Assert.Equal(FlowDirection.RightToLeft, paragraph.FlowDirection);
+    }
+
+    [Fact]
+    public void EnglishLineInsideHebrewList_StillSplits()
+    {
+        var presentation = new QuickChatMessageViewModel(
+            Message("שורה עברית\nTake Screenshot\nשורה עברית נוספת"));
+
+        Assert.Equal(
+            [FlowDirection.RightToLeft, FlowDirection.LeftToRight, FlowDirection.RightToLeft],
+            presentation.Paragraphs.Select(item => item.FlowDirection));
+    }
+
+    [Fact]
+    public void RunResolutionIsCarriedNotRecomputed()
+    {
+        var presentation = new QuickChatMessageViewModel(
+            Message("Windows מאפשר צילום מסך\nלחצי Ctrl + Shift + S"));
+
+        var paragraph = Assert.Single(presentation.Paragraphs);
+        Assert.Equal("Windows מאפשר צילום מסך\nלחצי Ctrl + Shift + S", paragraph.Text);
+        Assert.Equal(FlowDirection.RightToLeft, paragraph.FlowDirection);
+    }
+
+    [Fact]
+    public void StreamingLatinFirstLine_FlipsToHebrewAndRejoinsRun()
+    {
+        var message = Message("שורה עברית\nCtrl + Alt + T");
+        var presentation = new QuickChatMessageViewModel(message);
+
+        Assert.Equal(2, presentation.Paragraphs.Count);
+        Assert.Equal(FlowDirection.RightToLeft, presentation.Paragraphs[0].FlowDirection);
+        Assert.Equal(FlowDirection.LeftToRight, presentation.Paragraphs[1].FlowDirection);
+
+        message.Text += " אינו קיצור ברירת המחדל";
+        presentation.UpdateFrom(message);
+
+        var paragraph = Assert.Single(presentation.Paragraphs);
+        Assert.Equal(message.Text, paragraph.Text);
+        Assert.Equal(FlowDirection.RightToLeft, paragraph.FlowDirection);
+    }
+
     private static QuickChatMessage Message(string text) => new()
     {
         Id = Guid.NewGuid(),

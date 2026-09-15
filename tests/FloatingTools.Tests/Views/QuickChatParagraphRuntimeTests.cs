@@ -126,6 +126,68 @@ public sealed class QuickChatParagraphRuntimeTests
             }
         });
 
+    [Fact]
+    public void MixedLanguageLineResolver_AnchorsHebrewDominantAndEnglishInkPhysically()
+        => RunSta(() =>
+        {
+            const string hebrewDominant =
+                "- Windows מאפשר צילום מסך מהיר בעברית ומציג את התוצאה הנכונה בתוך החלון בצורה ברורה ונוחה למשתמש.";
+            const string english =
+                "Take Screenshot and continue with a genuinely English explanation that wraps naturally across several lines in the available message width.";
+            var session = new PresentationSession(
+                Assistant(hebrewDominant),
+                Assistant(english));
+            var viewModel = new QuickChatViewModel(session, new PresentationImageStore());
+            viewModel.InitializeAsync().GetAwaiter().GetResult();
+            var view = new QuickChatToolView { DataContext = viewModel };
+            var window = new Window
+            {
+                Content = view,
+                Width = 360,
+                Height = 700,
+                Left = -10_000,
+                Top = -10_000,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+                WindowStyle = WindowStyle.None
+            };
+
+            try
+            {
+                window.Show();
+                DrainDispatcher();
+                window.UpdateLayout();
+
+                var paragraphs = FindDescendants<TextBox>(view)
+                    .Where(element => element.DataContext is QuickChatParagraphPresentation)
+                    .ToArray();
+                Assert.Equal(2, paragraphs.Length);
+                var expectedFlows = new[]
+                {
+                    FlowDirection.RightToLeft,
+                    FlowDirection.LeftToRight
+                };
+                for (var index = 0; index < paragraphs.Length; index++)
+                {
+                    var paragraph = paragraphs[index];
+                    var surface = FindAncestor<Border>(paragraph,
+                        element => element.Name == "MessageSurface");
+                    Assert.NotNull(surface);
+                    AssertParagraph(paragraph, expectedFlows[index], TextAlignment.Left);
+                    var ink = GetLastLineInk(paragraph, surface!);
+                    Assert.True(ink.LineCount >= 2);
+                    Assert.True(index == 0
+                        ? ink.RightMargin < ink.LeftMargin
+                        : ink.LeftMargin < ink.RightMargin,
+                        $"Unexpected physical ink margins: left={ink.LeftMargin}, right={ink.RightMargin}.");
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
     private const string HebrewWrappingText =
         "זהו טקסט ארוך בעברית שנועד להישבר למספר שורות בתוך חלון השיחה כדי לבדוק כיוון ויישור בצורה אמינה ועקבית בכל מצב. סוף";
 
