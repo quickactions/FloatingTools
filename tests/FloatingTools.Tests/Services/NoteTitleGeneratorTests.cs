@@ -20,4 +20,51 @@ public sealed class NoteTitleGeneratorTests
         var title = NoteTitleGenerator.Generate(new string('a', 100));
         Assert.Equal(NoteTitleGenerator.MaximumTitleLength, title.Length);
     }
+
+    [Theory]
+    [InlineData("Meeting notes,", "Meeting notes")]
+    [InlineData("Meeting notes.", "Meeting notes")]
+    [InlineData("Hello:", "Hello")]
+    [InlineData("Hello;", "Hello")]
+    [InlineData("What happened?", "What happened")]
+    [InlineData("Really?!", "Really")]
+    [InlineData("Wait…", "Wait")]
+    [InlineData("word ,", "word")]
+    [InlineData("שלום עולם.", "שלום עולם")]
+    [InlineData("שלום־", "שלום")]
+    public void Generate_RemovesOrdinaryTrailingPunctuation(
+        string content,
+        string expected) =>
+        Assert.Equal(expected, NoteTitleGenerator.Generate(content));
+
+    [Theory]
+    [InlineData("Test: example")]
+    [InlineData("hello-world test")]
+    [InlineData("וכו׳")]
+    [InlineData("צה״ל")]
+    [InlineData("Hello 😀")]
+    [InlineData("Price 5$")]
+    [InlineData("Learn C#")]
+    [InlineData("Discount 50%")]
+    [InlineData("email@")]
+    [InlineData("R&D")]
+    [InlineData("value*")]
+    [InlineData("path/")]
+    [InlineData("Test (example)")]
+    public void Generate_PreservesInternalAndMeaningfulTrailingCharacters(string content) =>
+        Assert.Equal(content, NoteTitleGenerator.Generate(content));
+
+    [Fact]
+    public void Generate_PunctuationOnlyContentReturnsUntitledNote() =>
+        Assert.Equal(NoteTitleGenerator.UntitledTitle, NoteTitleGenerator.Generate("?! …"));
+
+    [Fact]
+    public void Generate_RemovesPunctuationExposedByMaximumLengthTruncation()
+    {
+        var content = new string('a', NoteTitleGenerator.MaximumTitleLength - 1) + ",tail";
+
+        Assert.Equal(
+            new string('a', NoteTitleGenerator.MaximumTitleLength - 1),
+            NoteTitleGenerator.Generate(content));
+    }
 }

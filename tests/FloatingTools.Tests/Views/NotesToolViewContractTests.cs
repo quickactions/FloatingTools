@@ -5,6 +5,24 @@ namespace FloatingTools.Tests.Views;
 public sealed class NotesToolViewContractTests
 {
     [Fact]
+    public void NotePage_CaretMarginBehaviorIsOnContentGridBeforeNonLogicalScrolling()
+    {
+        var document = XDocument.Load(FindPath("NotesToolView.xaml"));
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace controls = "clr-namespace:FloatingTools.App.Controls";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var viewer = document.Descendants(presentation + "ScrollViewer")
+            .Single(element => (string?)element.Attribute(x + "Name") == "NotePageScrollViewer");
+        var content = viewer.Elements(presentation + "Grid").Single();
+
+        Assert.Equal("False", (string?)viewer.Attribute("CanContentScroll"));
+        Assert.Null(viewer.Attribute(controls + "CaretScrollMarginBehavior.IsEnabled"));
+        Assert.Equal("NotePageContentGrid", (string?)content.Attribute(x + "Name"));
+        Assert.Equal("True",
+            (string?)content.Attribute(controls + "CaretScrollMarginBehavior.IsEnabled"));
+    }
+
+    [Fact]
     public void TextTemplate_HasNoHyperlinkMouseMoveHandler()
     {
         var xaml = File.ReadAllText(FindPath("NotesToolView.xaml"));
@@ -248,6 +266,32 @@ public sealed class NotesToolViewContractTests
         Assert.Contains("e.Key == Key.X", codeBehind);
         Assert.Contains("CopySelectedImage", codeBehind);
         Assert.Contains("InsertClipboardImageAfterBlockAsync", codeBehind);
+    }
+
+    [Fact]
+    public void ClipboardImagePaste_IsHandledBeforeEitherAsynchronousInsertion()
+    {
+        var code = File.ReadAllText(FindPath("NotesToolView.xaml.cs"));
+        var pasteStart = code.IndexOf("if (e.Key == Key.V", StringComparison.Ordinal);
+        var pasteEnd = code.IndexOf(
+            "if (Keyboard.Modifiers != ModifierKeys.Control",
+            pasteStart,
+            StringComparison.Ordinal);
+        var pasteBranch = code[pasteStart..pasteEnd];
+        var selectedImageStart = pasteBranch.IndexOf(
+            "else if (pngBytes is not null && viewModel.SelectedImageBlock",
+            StringComparison.Ordinal);
+        var textInsertion = pasteBranch[..selectedImageStart];
+        var imageInsertion = pasteBranch[selectedImageStart..];
+        var textHandled = textInsertion.IndexOf("e.Handled = true", StringComparison.Ordinal);
+        var textAwait = textInsertion.IndexOf(
+            "await viewModel.InsertClipboardImageAsync", StringComparison.Ordinal);
+        var imageHandled = imageInsertion.IndexOf("e.Handled = true", StringComparison.Ordinal);
+        var imageAwait = imageInsertion.IndexOf(
+            "await viewModel.InsertClipboardImageAfterBlockAsync", StringComparison.Ordinal);
+
+        Assert.True(textHandled >= 0 && textHandled < textAwait);
+        Assert.True(imageHandled >= 0 && imageHandled < imageAwait);
     }
 
     [Fact]

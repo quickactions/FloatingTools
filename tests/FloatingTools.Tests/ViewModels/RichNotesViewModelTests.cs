@@ -31,6 +31,31 @@ public sealed class RichNotesViewModelTests
     }
 
     [Fact]
+    public async Task ClipboardImageAtLineBoundaryConsumesNewlineAndPersistsBoundaryFlag()
+    {
+        var (viewModel, store, _) = await CreateAsync();
+        viewModel.Content = "Line 1\r\nLine 2";
+        var target = Assert.IsType<TextNoteBlock>(Assert.Single(viewModel.ActiveBlocks));
+
+        var next = await viewModel.InsertClipboardImageAsync(
+            target,
+            "Line 1".Length,
+            0,
+            [1, 2, 3],
+            300);
+
+        Assert.Equal("Line 1", target.Text);
+        Assert.NotNull(next);
+        Assert.Equal("Line 2", next.Text);
+        Assert.True(next.PreserveBoundaryBefore);
+        var savedBlocks = Assert.Single(store.State.Notes).Blocks;
+        Assert.Equal("Line 1", Assert.IsType<TextNoteBlock>(savedBlocks[0]).Text);
+        var savedLower = Assert.IsType<TextNoteBlock>(savedBlocks[2]);
+        Assert.Equal("Line 2", savedLower.Text);
+        Assert.True(savedLower.PreserveBoundaryBefore);
+    }
+
+    [Fact]
     public async Task ImageAtEnd_KeepsExistingEditorWithoutAddingTrailingText()
     {
         var (viewModel, _, _) = await CreateAsync();

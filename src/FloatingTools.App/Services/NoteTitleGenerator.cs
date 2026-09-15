@@ -1,3 +1,6 @@
+using System.Buffers;
+using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace FloatingTools.App.Services;
@@ -24,6 +27,36 @@ public static class NoteTitleGenerator
             title = title[..MaximumTitleLength].TrimEnd();
         }
 
+        title = TrimTrailingPunctuation(title);
+
         return title.Length == 0 ? UntitledTitle : title;
+    }
+
+    private static string TrimTrailingPunctuation(string title)
+    {
+        var end = title.Length;
+        while (end > 0
+               && Rune.DecodeLastFromUtf16(title.AsSpan(0, end), out var rune, out var consumed)
+                   == OperationStatus.Done
+               && (Rune.IsWhiteSpace(rune) || IsRemovableTrailingPunctuation(rune)))
+        {
+            end -= consumed;
+        }
+
+        return title[..end];
+    }
+
+    private static bool IsRemovableTrailingPunctuation(Rune rune)
+    {
+        if (rune.Value is '\u05F3' or '\u05F4' or '\'' or '"'
+            or '#' or '%' or '@' or '&' or '*' or '/')
+        {
+            return false;
+        }
+
+        return Rune.GetUnicodeCategory(rune) is
+            UnicodeCategory.ConnectorPunctuation or
+            UnicodeCategory.DashPunctuation or
+            UnicodeCategory.OtherPunctuation;
     }
 }

@@ -264,6 +264,30 @@ public sealed class ActiveNoteEditor
         var length = Math.Clamp(selectionLength, 0, target.Text.Length - start);
         var before = target.Text[..start];
         var after = target.Text[(start + length)..];
+        var consumedSplitBoundary = false;
+        if (before.Length > 0 && after.Length > 0)
+        {
+            if (after.StartsWith("\r\n", StringComparison.Ordinal))
+            {
+                after = after[2..];
+                consumedSplitBoundary = true;
+            }
+            else if (after.StartsWith('\n'))
+            {
+                after = after[1..];
+                consumedSplitBoundary = true;
+            }
+            else if (before.EndsWith("\r\n", StringComparison.Ordinal))
+            {
+                before = before[..^2];
+                consumedSplitBoundary = true;
+            }
+            else if (before.EndsWith('\n'))
+            {
+                before = before[..^1];
+                consumedSplitBoundary = true;
+            }
+        }
         var imageBlock = CreateImageBlock(image, availableWidth);
         var focusTarget = target;
         var index = note.Blocks.IndexOf(target);
@@ -283,7 +307,11 @@ public sealed class ActiveNoteEditor
                 // A nonempty suffix is document content, not an automatic editor.
                 if (after.Length > 0)
                 {
-                    focusTarget = new TextNoteBlock { Text = after };
+                    focusTarget = new TextNoteBlock
+                    {
+                        Text = after,
+                        PreserveBoundaryBefore = consumedSplitBoundary
+                    };
                     note.Blocks.Insert(index + 2, focusTarget);
                 }
             }

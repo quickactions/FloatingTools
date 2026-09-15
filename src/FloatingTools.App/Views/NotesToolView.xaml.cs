@@ -123,6 +123,7 @@ public partial class NotesToolView : UserControl
                 && FindDataContext<TextNoteBlock>(e.OriginalSource as DependencyObject) is { } textBlock
                 && FindAncestor<TextBox>(e.OriginalSource as DependencyObject) is { } textBox)
             {
+                e.Handled = true;
                 var next = await viewModel.InsertClipboardImageAsync(
                     textBlock,
                     textBox.SelectionStart,
@@ -130,16 +131,15 @@ public partial class NotesToolView : UserControl
                     pngBytes,
                     GetAvailableImageWidth());
                 FocusTextBlock(next);
-                e.Handled = true;
             }
             else if (pngBytes is not null && viewModel.SelectedImageBlock is { } selectedImage)
             {
+                e.Handled = true;
                 var next = await viewModel.InsertClipboardImageAfterBlockAsync(
                     selectedImage,
                     pngBytes,
                     GetAvailableImageWidth());
                 FocusTextBlock(next);
-                e.Handled = true;
             }
 
             return;

@@ -13,6 +13,14 @@ public sealed class NoteTitlePolicyTests
             Blocks = [new TextNoteBlock { Text = "automatic text" }]
         }));
 
+    [Fact]
+    public void ResolveTitle_LeavesManualTitleWithTrailingPunctuationUntouched() =>
+        Assert.Equal("Meeting notes,", NoteTitlePolicy.ResolveTitle(new NoteDocument
+        {
+            Title = "Meeting notes,", HasManualTitle = true,
+            Blocks = [new TextNoteBlock { Text = "automatic text" }]
+        }));
+
     [Theory]
     [InlineData("one two three four five", "one two three")]
     [InlineData("לסיים את הפרויקט היום בבוקר", "לסיים את הפרויקט")]

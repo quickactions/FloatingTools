@@ -441,8 +441,10 @@
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalContentAlignment="Stretch"
                           CanContentScroll="False">
-                <Grid Background="White"
-                      MinHeight="{Binding ViewportHeight, ElementName=NotePageScrollViewer}">
+                <Grid x:Name="NotePageContentGrid"
+                      Background="White"
+                      MinHeight="{Binding ViewportHeight, ElementName=NotePageScrollViewer}"
+                      controls:CaretScrollMarginBehavior.IsEnabled="True">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />

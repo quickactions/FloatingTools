@@ -196,6 +196,7 @@ public sealed class ActiveNoteEditorTests
         Assert.NotNull(result);
         Assert.Equal("before ", target.Text);
         Assert.Equal("after", result.FocusTarget.Text);
+        Assert.False(result.FocusTarget.PreserveBoundaryBefore);
         Assert.Equal([target, result.ImageBlock, result.FocusTarget], note.Blocks);
 
         Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
@@ -203,6 +204,131 @@ public sealed class ActiveNoteEditorTests
         var restored = Assert.IsType<TextNoteBlock>(Assert.Single(note.Blocks));
         Assert.Equal(target.Id, restored.Id);
         Assert.Equal("before after", restored.Text);
+    }
+
+    [Theory]
+    [InlineData("\r\n")]
+    [InlineData("\n")]
+    public void InsertImageIntoText_NewlineImmediatelyAfterCaretConsumesBoundary(
+        string lineBreak)
+    {
+        var target = new TextNoteBlock { Text = $"Line 1{lineBreak}Line 2" };
+        var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [target] };
+        _editor.Subscribe(note);
+
+        var result = _editor.InsertImageIntoText(
+            note,
+            target,
+            "Line 1".Length,
+            0,
+            new ImageBlockData("split.png", "C:\\assets\\split.png", 100, 50),
+            300,
+            30);
+
+        Assert.NotNull(result);
+        Assert.Equal("Line 1", target.Text);
+        Assert.Equal("Line 2", result.FocusTarget.Text);
+        Assert.True(result.FocusTarget.PreserveBoundaryBefore);
+    }
+
+    [Theory]
+    [InlineData("\r\n")]
+    [InlineData("\n")]
+    public void InsertImageIntoText_NewlineImmediatelyBeforeCaretConsumesBoundary(
+        string lineBreak)
+    {
+        var target = new TextNoteBlock { Text = $"Line 1{lineBreak}Line 2" };
+        var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [target] };
+        _editor.Subscribe(note);
+
+        var result = _editor.InsertImageIntoText(
+            note,
+            target,
+            "Line 1".Length + lineBreak.Length,
+            0,
+            new ImageBlockData("split.png", "C:\\assets\\split.png", 100, 50),
+            300,
+            30);
+
+        Assert.NotNull(result);
+        Assert.Equal("Line 1", target.Text);
+        Assert.Equal("Line 2", result.FocusTarget.Text);
+        Assert.True(result.FocusTarget.PreserveBoundaryBefore);
+    }
+
+    [Fact]
+    public void InsertImageIntoText_TwoBoundaryLineBreaksConsumesOnlyOne()
+    {
+        var target = new TextNoteBlock { Text = "Line 1\r\n\r\nLine 2" };
+        var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [target] };
+        _editor.Subscribe(note);
+
+        var result = _editor.InsertImageIntoText(
+            note,
+            target,
+            "Line 1".Length,
+            0,
+            new ImageBlockData("split.png", "C:\\assets\\split.png", 100, 50),
+            300,
+            30);
+
+        Assert.NotNull(result);
+        Assert.Equal("Line 1", target.Text);
+        Assert.Equal("\r\nLine 2", result.FocusTarget.Text);
+        Assert.True(result.FocusTarget.PreserveBoundaryBefore);
+    }
+
+    [Fact]
+    public void InsertImageIntoText_NewlineBoundaryUndoRestoresExactOriginalText()
+    {
+        const string original = "Line 1\r\nLine 2";
+        var target = new TextNoteBlock { Id = Guid.NewGuid(), Text = original };
+        var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [target] };
+        _editor.Subscribe(note);
+
+        _editor.InsertImageIntoText(
+            note,
+            target,
+            "Line 1".Length,
+            0,
+            new ImageBlockData("split.png", "C:\\assets\\split.png", 100, 50),
+            300,
+            30);
+
+        Assert.True(_editor.TryPopUndoSnapshot(note, out var snapshot));
+        _editor.RestoreBlocks(note, snapshot.Blocks, _ => { });
+
+        var restored = Assert.IsType<TextNoteBlock>(Assert.Single(note.Blocks));
+        Assert.Equal(target.Id, restored.Id);
+        Assert.Equal(original, restored.Text);
+    }
+
+    [Fact]
+    public void DeleteImageAfterNewlineBoundarySplitKeepsTextBlocksSeparated()
+    {
+        var target = new TextNoteBlock { Text = "Line 1\nLine 2" };
+        var note = new NoteDocument { Id = Guid.NewGuid(), Blocks = [target] };
+        _editor.Subscribe(note);
+        var insertion = _editor.InsertImageIntoText(
+            note,
+            target,
+            "Line 1".Length,
+            0,
+            new ImageBlockData("split.png", "C:\\assets\\split.png", 100, 50),
+            300,
+            30)!;
+
+        _editor.DeleteImage(note, insertion.ImageBlock, 30);
+
+        Assert.Collection(
+            note.Blocks,
+            block => Assert.Equal("Line 1", Assert.IsType<TextNoteBlock>(block).Text),
+            block =>
+            {
+                var lower = Assert.IsType<TextNoteBlock>(block);
+                Assert.Equal("Line 2", lower.Text);
+                Assert.True(lower.PreserveBoundaryBefore);
+            });
     }
 
     [Fact]
