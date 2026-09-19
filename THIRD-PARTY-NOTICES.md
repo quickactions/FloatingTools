@@ -104,6 +104,77 @@ year above are taken from the package's own NuGet metadata (`nuspec`
 `<copyright>` field), and the license type is taken from its declared SPDX
 license expression (`MIT`).
 
+## RapidOcrNet 4.2.0
+
+FloatingTools includes `RapidOcrNet`, a .NET implementation of the RapidOCR
+pipeline using PaddleOCR ONNX models and SkiaSharp image processing.
+
+- Authors: BobLd, RapidOCR
+- Project: https://github.com/BobLd/RapidOcrNet
+- NuGet: https://www.nuget.org/packages/RapidOcrNet/4.2.0
+- License: Apache License 2.0
+
+The Apache License 2.0 text is included at `licenses/Apache-2.0.txt`.
+
+## Bundled PP-OCRv5 Latin models and dictionary
+
+The RapidOcrNet package bundles these PaddleOCR model assets:
+
+- `ch_PP-OCRv5_mobile_det.onnx`
+- `ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx`
+- `latin_PP-OCRv5_rec_mobile_infer.onnx`
+- `ppocrv5_latin_dict.txt`
+
+- Project: https://github.com/PaddlePaddle/PaddleOCR
+- Model source referenced by RapidOcrNet:
+  https://github.com/RapidAI/RapidOCR/blob/main/python/rapidocr/default_models.yaml
+- License: Apache License 2.0
+
+The Apache License 2.0 text is included at `licenses/Apache-2.0.txt`.
+
+## Microsoft.ML.OnnxRuntime 1.29.0
+
+RapidOcrNet uses the `Microsoft.ML.OnnxRuntime` and
+`Microsoft.ML.OnnxRuntime.Managed` packages to execute its ONNX models.
+
+- Project: https://github.com/microsoft/onnxruntime
+- NuGet: https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime/1.29.0
+- Managed NuGet:
+  https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime.Managed/1.29.0
+- License: MIT
+
+The package license is included verbatim at
+`licenses/OnnxRuntime-MIT.txt`. Its packaged third-party notices are included
+verbatim at `licenses/OnnxRuntime-THIRD-PARTY-NOTICES.txt`.
+
+## SkiaSharp 3.119.1
+
+RapidOcrNet uses `SkiaSharp` and `SkiaSharp.NativeAssets.Win32` for bitmap
+decoding and image processing.
+
+- Project: https://github.com/mono/SkiaSharp
+- NuGet: https://www.nuget.org/packages/SkiaSharp/3.119.1
+- Native assets NuGet:
+  https://www.nuget.org/packages/SkiaSharp.NativeAssets.Win32/3.119.1
+- License: MIT
+
+The package license is included verbatim at `licenses/SkiaSharp-MIT.txt`.
+The packaged native-assets third-party notices are included verbatim at
+`licenses/SkiaSharp-THIRD-PARTY-NOTICES.txt`.
+
+## Clipper2 2.0.0
+
+RapidOcrNet uses `Clipper2` for polygon clipping and offsetting during text
+detection.
+
+- Author: Angus Johnson
+- Project: https://github.com/AngusJohnson/Clipper2
+- NuGet: https://www.nuget.org/packages/Clipper2/2.0.0
+- License: Boost Software License 1.0
+
+The package license is included verbatim at
+`licenses/Clipper2-BSL-1.0.txt`.
+
 ## Scope of this document
 
 This document covers every third-party NuGet package and native library that
