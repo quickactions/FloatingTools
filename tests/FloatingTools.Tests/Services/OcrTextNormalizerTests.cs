@@ -1,7 +1,3 @@
-using System.Globalization;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using FloatingTools.App.Models;
 using FloatingTools.App.Services;
 
@@ -79,83 +75,5 @@ public sealed class OcrTextNormalizerTests
 
         Assert.Equal(new byte[] { 0, 0, 0 }, bytes);
         Assert.Throws<ObjectDisposedException>(() => _ = image.Data);
-    }
-
-    [Fact]
-    public async Task TesseractService_MissingEnglishDataFailsBeforeNativeOcr()
-    {
-        var missingPath = Path.Combine(
-            Path.GetTempPath(),
-            "FloatingTools-tests",
-            Guid.NewGuid().ToString("N"));
-        using var service = new TesseractLocalOcrService(missingPath);
-        using var image = new CapturedScreenImage([1, 2, 3]);
-
-        var exception = await Assert.ThrowsAsync<FileNotFoundException>(
-            () => service.RecognizeEnglishAsync(image));
-
-        Assert.Contains("eng.traineddata", exception.FileName);
-    }
-
-    [Fact]
-    public async Task LocalTesseractSmoke_RecognizesClearRenderedEnglishText()
-    {
-        var imageBytes = await RenderEnglishTextAsync("HELLO WORLD");
-        using var service = new TesseractLocalOcrService(
-            Path.Combine(AppContext.BaseDirectory, "tessdata"));
-        using var image = new CapturedScreenImage(imageBytes);
-
-        var result = await service.RecognizeEnglishAsync(image);
-
-        Assert.Contains("HELLO", result, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("WORLD", result, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static Task<byte[]> RenderEnglishTextAsync(string text)
-    {
-        var completion = new TaskCompletionSource<byte[]>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                const int width = 460;
-                const int height = 130;
-                var visual = new DrawingVisual();
-                using (var drawing = visual.RenderOpen())
-                {
-                    drawing.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
-                    var formattedText = new FormattedText(
-                        text,
-                        CultureInfo.InvariantCulture,
-                        FlowDirection.LeftToRight,
-                        new Typeface("Arial"),
-                        48,
-                        Brushes.Black,
-                        1);
-                    drawing.DrawText(formattedText, new Point(18, 31));
-                }
-
-                var bitmap = new RenderTargetBitmap(
-                    width,
-                    height,
-                    96,
-                    96,
-                    PixelFormats.Pbgra32);
-                bitmap.Render(visual);
-                var encoder = new BmpBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using var stream = new MemoryStream();
-                encoder.Save(stream);
-                completion.TrySetResult(stream.ToArray());
-            }
-            catch (Exception exception)
-            {
-                completion.TrySetException(exception);
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        return completion.Task;
     }
 }

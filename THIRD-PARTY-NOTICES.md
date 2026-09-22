@@ -1,53 +1,5 @@
 # Third-party notices
 
-## TesseractOCR 5.5.2
-
-FloatingTools uses the `TesseractOCR` .NET wrapper for local English OCR.
-
-- Project: https://github.com/Sicos1977/TesseractOCR
-- NuGet: https://www.nuget.org/packages/TesseractOCR/5.5.2
-- License: Apache License 2.0
-
-The Apache License 2.0 text is included at `licenses/Apache-2.0.txt`.
-
-## Bundled native Tesseract OCR engine (tesseract55.dll)
-
-The `TesseractOCR` package bundles a compiled native `tesseract55.dll`
-(x86 and x64) from the upstream [tesseract-ocr/tesseract](https://github.com/tesseract-ocr/tesseract)
-engine project.
-
-- Project: https://github.com/tesseract-ocr/tesseract
-- License: Apache License 2.0
-
-The Apache License 2.0 text is included at `licenses/Apache-2.0.txt`.
-
-## Bundled native Leptonica imaging library (leptonica-1.85.0.dll)
-
-The `TesseractOCR` package also bundles a compiled native
-`leptonica-1.85.0.dll` (x86 and x64) from the upstream
-[DanBloomberg/leptonica](https://github.com/DanBloomberg/leptonica) imaging
-library, which Tesseract depends on to read image data.
-
-- Project: https://github.com/DanBloomberg/leptonica
-- License: Leptonica's own permissive license (BSD-2-Clause-style, with
-  project-specific wording), copyright (C) 2001-2020 Leptonica.
-
-Verified directly from the upstream repository's `1.85.0` tag — the exact
-version matching the bundled `leptonica-1.85.0.dll` — at
-https://github.com/DanBloomberg/leptonica/blob/1.85.0/leptonica-license.txt.
-The license text is included verbatim at `licenses/Leptonica-License.txt`.
-
-## English Tesseract language data
-
-`src/FloatingTools.App/tessdata/eng.traineddata` comes from the official
-`tesseract-ocr/tessdata_fast` repository.
-
-- Source: https://github.com/tesseract-ocr/tessdata_fast/blob/main/eng.traineddata
-- License: Apache License 2.0
-- SHA-256: `7D4322BD2A7749724879683FC3912CB542F19906C83BCC1A52132556427170B2`
-
-The Apache License 2.0 text is included at `licenses/Apache-2.0.txt`.
-
 ## Open XML SDK 3.5.1
 
 FloatingTools uses the Open XML SDK to generate local Microsoft Word `.docx`

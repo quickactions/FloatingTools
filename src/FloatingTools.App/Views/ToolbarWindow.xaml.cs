@@ -25,7 +25,8 @@ public partial class ToolbarWindow : Window
     private readonly AppSettings _settings;
     private readonly ToolTip _transientStatusToolTip;
     private readonly TextBlock _transientStatusText;
-    private readonly DispatcherTimer _transientStatusTimer;
+    private DispatcherTimer? _transientStatusTimer;
+    private long _transientStatusGeneration;
 
     private IntPtr _windowHandle;
     private PixelPoint _pointerAtDragStart;
@@ -178,11 +179,6 @@ public partial class ToolbarWindow : Window
         _transientStatusToolTip.SetResourceReference(
             FrameworkElement.StyleProperty,
             "FloatingToolsSharedToolTipStyle");
-        _transientStatusTimer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = TransientStatusDuration
-        };
-        _transientStatusTimer.Tick += OnTransientStatusElapsed;
 
         SourceInitialized += OnSourceInitialized;
         Closing += OnWindowClosing;
@@ -212,15 +208,30 @@ public partial class ToolbarWindow : Window
             ? PlacementMode.Left
             : PlacementMode.Right;
         _transientStatusToolTip.IsOpen = true;
-        _transientStatusTimer.Stop();
-        _transientStatusTimer.Start();
+        _transientStatusTimer?.Stop();
+        var generation = ++_transientStatusGeneration;
+        var timer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TransientStatusDuration
+        };
+        timer.Tick += (_, _) => DismissTransientStatus(generation);
+        _transientStatusTimer = timer;
+        timer.Start();
     }
 
-    private void OnTransientStatusElapsed(object? sender, EventArgs e) => DismissTransientStatus();
+    private void DismissTransientStatus(long generation)
+    {
+        if (generation == _transientStatusGeneration)
+        {
+            DismissTransientStatus();
+        }
+    }
 
     private void DismissTransientStatus()
     {
-        _transientStatusTimer.Stop();
+        _transientStatusGeneration++;
+        _transientStatusTimer?.Stop();
+        _transientStatusTimer = null;
         _transientStatusToolTip.IsOpen = false;
     }
 
@@ -278,8 +289,7 @@ public partial class ToolbarWindow : Window
 
         if (!_isDragging)
         {
-            _isDragging = true;
-            DragStarted?.Invoke(this, EventArgs.Empty);
+            BeginToolbarDrag();
         }
 
         try
@@ -296,6 +306,13 @@ public partial class ToolbarWindow : Window
         }
 
         e.Handled = true;
+    }
+
+    private void BeginToolbarDrag()
+    {
+        _isDragging = true;
+        DismissTransientStatus();
+        DragStarted?.Invoke(this, EventArgs.Empty);
     }
 
     private void MainTileButton_OnPreviewMouseLeftButtonUp(
@@ -431,7 +448,6 @@ public partial class ToolbarWindow : Window
     {
         _closed = true;
         DismissTransientStatus();
-        _transientStatusTimer.Tick -= OnTransientStatusElapsed;
         _source?.RemoveHook(OnWindowMessage);
         _source = null;
         SourceInitialized -= OnSourceInitialized;

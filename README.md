@@ -98,7 +98,7 @@ and added.
 - WPF
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/) 8.4.0
 - OpenAI API (accessed directly over HTTP, no third-party SDK)
-- [TesseractOCR](https://www.nuget.org/packages/TesseractOCR) 5.5.2 (local OCR)
+- [RapidOcrNet](https://www.nuget.org/packages/RapidOcrNet) 4.2.0 (local OCR)
 - [DocumentFormat.OpenXml](https://github.com/dotnet/Open-XML-SDK) 3.5.1
 - [PDFsharp-WPF](https://www.nuget.org/packages/PDFsharp-WPF) 6.2.4
 - [xUnit](https://xunit.net/) 2.9.3
@@ -167,9 +167,9 @@ Extract Text from Screen is an action rather than a separate tool. Trigger it wi
 screen, and the recognized text is placed into the Translation input — ready to
 translate, edit, or copy from there.
 
-Recognition runs locally using [Tesseract](https://github.com/tesseract-ocr/tesseract)
-via the TesseractOCR package; no image or text is sent anywhere for OCR. Only the
-English trained-data model is bundled in v1.0, so accuracy is best on English text.
+Recognition runs locally using [RapidOcrNet](https://github.com/BobLd/RapidOcrNet)
+with bundled PP-OCRv5 Latin models; no image or text is sent anywhere for OCR.
+Accuracy is best on English and other Latin-script text.
 
 ## Testing
 
