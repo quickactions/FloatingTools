@@ -99,6 +99,7 @@ public sealed class TranslationOcrIntegrationTests
 
         Assert.False(context.ViewModel.LastCaptureProducedText);
         Assert.Equal(ScreenTextCaptureStatus.Failed, context.ViewModel.LastCaptureStatus);
+        Assert.Null(context.ViewModel.CaptureMessage);
     }
 
     [Fact]
@@ -120,6 +121,58 @@ public sealed class TranslationOcrIntegrationTests
         await laterCapture;
 
         Assert.False(context.ViewModel.LastCaptureProducedText);
+    }
+
+    [Theory]
+    [InlineData(ScreenTextCaptureStatus.Success, "CAPTURED", null)]
+    [InlineData(ScreenTextCaptureStatus.NoText, null, "No text detected.")]
+    [InlineData(ScreenTextCaptureStatus.Failed, null, null)]
+    [InlineData(ScreenTextCaptureStatus.Cancelled, null, null)]
+    public async Task Capture_ShowsReadingMessageOnlyWhileOperationIsPending(
+        ScreenTextCaptureStatus status,
+        string? text,
+        string? expectedFinalMessage)
+    {
+        var pending = new TaskCompletionSource<ScreenTextCaptureResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            new SequenceScreenTextCaptureService(pending.Task));
+
+        var capture = context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+
+        Assert.Equal("Reading text…", context.ViewModel.CaptureMessage);
+
+        pending.SetResult(new ScreenTextCaptureResult(status, text));
+        await capture;
+
+        Assert.Equal(expectedFinalMessage, context.ViewModel.CaptureMessage);
+    }
+
+    [Theory]
+    [InlineData(ScreenTextCaptureStatus.NoText)]
+    [InlineData(ScreenTextCaptureStatus.Failed)]
+    public async Task NewCapture_ReplacesStaleCaptureOrErrorMessageWhilePending(
+        ScreenTextCaptureStatus firstStatus)
+    {
+        var pending = new TaskCompletionSource<ScreenTextCaptureResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var captureService = new SequenceScreenTextCaptureService(
+            Task.FromResult(new ScreenTextCaptureResult(firstStatus)),
+            pending.Task);
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            captureService);
+
+        await context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+        var secondCapture = context.ViewModel.CaptureTextCommand.ExecuteAsync(null);
+
+        Assert.Equal("Reading text…", context.ViewModel.CaptureMessage);
+        Assert.Null(context.ViewModel.ErrorMessage);
+
+        pending.SetResult(ScreenTextCaptureResult.Cancelled());
+        await secondCapture;
+        Assert.Null(context.ViewModel.CaptureMessage);
     }
 
     [Theory]

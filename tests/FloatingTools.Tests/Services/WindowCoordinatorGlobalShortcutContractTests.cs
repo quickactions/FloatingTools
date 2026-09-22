@@ -89,7 +89,9 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
         Assert.True(
             guardIndex < selectIndex,
             "The useful-text guard must run before the tool switch.");
-        Assert.DoesNotContain("LastCaptureStatus", body);
+        Assert.Contains("LastCaptureStatus == ScreenTextCaptureStatus.NoText", body);
+        Assert.Contains("!_capturePanelWasVisible", body);
+        Assert.Contains("ToolbarWindow.ShowTransientStatus(\"No text detected.\")", body);
         Assert.Contains("if (_visibilitySession.IsHidden)", body);
         Assert.Contains("_capturePanelWasVisible = true;", body);
         Assert.Contains("if (!_restoreCapturePanelOnNormal)", body);

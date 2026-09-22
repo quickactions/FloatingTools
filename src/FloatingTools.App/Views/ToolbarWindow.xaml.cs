@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -18,9 +19,13 @@ public partial class ToolbarWindow : Window
     private const long SystemCommandMask = 0xFFF0;
     private const long ScMinimize = 0xF020;
     private const long ScRestore = 0xF120;
+    private static readonly TimeSpan TransientStatusDuration = TimeSpan.FromSeconds(3);
     private readonly WindowPlacementService _placementService;
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
+    private readonly ToolTip _transientStatusToolTip;
+    private readonly TextBlock _transientStatusText;
+    private readonly DispatcherTimer _transientStatusTimer;
 
     private IntPtr _windowHandle;
     private PixelPoint _pointerAtDragStart;
@@ -64,6 +69,7 @@ public partial class ToolbarWindow : Window
     public void MinimizeUi()
     {
         if (_closed || WindowState == WindowState.Minimized) return;
+        DismissTransientStatus();
         CompletePendingDrag();
         _visibilityTransition = true;
         _applicationMinimizeInProgress = true;
@@ -156,6 +162,28 @@ public partial class ToolbarWindow : Window
         _settings = settings
             ?? throw new ArgumentNullException(nameof(settings));
 
+        _transientStatusText = new TextBlock
+        {
+            FontWeight = FontWeights.SemiBold
+        };
+        _transientStatusText.SetResourceReference(
+            TextBlock.ForegroundProperty,
+            "FloatingToolsBrushStatusWarning");
+        _transientStatusToolTip = new ToolTip
+        {
+            Content = _transientStatusText,
+            PlacementTarget = ToolbarBlock,
+            StaysOpen = true
+        };
+        _transientStatusToolTip.SetResourceReference(
+            FrameworkElement.StyleProperty,
+            "FloatingToolsSharedToolTipStyle");
+        _transientStatusTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TransientStatusDuration
+        };
+        _transientStatusTimer.Tick += OnTransientStatusElapsed;
+
         SourceInitialized += OnSourceInitialized;
         Closing += OnWindowClosing;
         Closed += OnWindowClosed;
@@ -169,6 +197,31 @@ public partial class ToolbarWindow : Window
         {
             ApplyDockVisuals(_settings.WindowPlacement.DockSide);
         }
+    }
+
+    internal bool IsTransientStatusVisible => _transientStatusToolTip.IsOpen;
+
+    internal string? TransientStatusText => _transientStatusText.Text;
+
+    internal void ShowTransientStatus(string message)
+    {
+        if (_closed || _shutdownStarted || string.IsNullOrWhiteSpace(message)) return;
+
+        _transientStatusText.Text = message;
+        _transientStatusToolTip.Placement = _settings.WindowPlacement?.DockSide == DockSide.Right
+            ? PlacementMode.Left
+            : PlacementMode.Right;
+        _transientStatusToolTip.IsOpen = true;
+        _transientStatusTimer.Stop();
+        _transientStatusTimer.Start();
+    }
+
+    private void OnTransientStatusElapsed(object? sender, EventArgs e) => DismissTransientStatus();
+
+    private void DismissTransientStatus()
+    {
+        _transientStatusTimer.Stop();
+        _transientStatusToolTip.IsOpen = false;
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -377,6 +430,8 @@ public partial class ToolbarWindow : Window
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _closed = true;
+        DismissTransientStatus();
+        _transientStatusTimer.Tick -= OnTransientStatusElapsed;
         _source?.RemoveHook(OnWindowMessage);
         _source = null;
         SourceInitialized -= OnSourceInitialized;

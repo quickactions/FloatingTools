@@ -10,6 +10,11 @@ public sealed class RapidOcrLocalOcrService : ILocalOcrService
     private const string ClassifierModel = "ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx";
     private const string RecognizerModel = "latin_PP-OCRv5_rec_mobile_infer.onnx";
     private const string DictionaryFile = "ppocrv5_latin_dict.txt";
+    private static readonly RapidOcrOptions RecognitionOptions =
+        RapidOcrOptions.Default with
+        {
+            RecMaxDegreeOfParallelism = 2
+        };
 
     private readonly string _modelsDirectory;
     private readonly object _sync = new();
@@ -58,7 +63,7 @@ public sealed class RapidOcrLocalOcrService : ILocalOcrService
         using var recognitionBitmap = CreateOpaqueBitmapIfNeeded(decoded);
         var result = _ocr!.Detect(
             recognitionBitmap ?? decoded,
-            RapidOcrOptions.Default,
+            RecognitionOptions,
             cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return OcrTextNormalizer.Normalize(result.StrRes);

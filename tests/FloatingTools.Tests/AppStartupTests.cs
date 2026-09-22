@@ -35,6 +35,20 @@ public sealed class AppStartupTests
     }
 
     [Fact]
+    public void Startup_ComposesRapidOcrFromBundledV5Models()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+
+        Assert.Contains("_localOcrService = new RapidOcrLocalOcrService(", source);
+        Assert.Contains(
+            "Path.Combine(AppContext.BaseDirectory, \"models\", \"v5\")",
+            source);
+        Assert.DoesNotContain("_localOcrService = new TesseractLocalOcrService(", source);
+        Assert.Contains("new ScreenTextCaptureService(", source);
+        Assert.Contains("            _localOcrService);", source);
+    }
+
+    [Fact]
     public void AppXaml_DeclaresAPermanentStaticColorsBaselineBeforeThemeServiceRuns()
     {
         // Regression guard for the C1 startup crash: WPF's compiled/optimized

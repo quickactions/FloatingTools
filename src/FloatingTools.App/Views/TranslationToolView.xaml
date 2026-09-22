@@ -749,11 +749,13 @@
                     </TextBlock.Style>
                 </TextBlock>
                 <TextBlock Text="{Binding CaptureMessage}"
-                           Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
                            FontSize="12"
+                           FontWeight="SemiBold"
                            TextWrapping="Wrap">
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Foreground"
+                                    Value="{DynamicResource FloatingToolsBrushForegroundSecondary}" />
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding CaptureMessage}"
@@ -763,6 +765,16 @@
                                 <DataTrigger Binding="{Binding CaptureMessage}"
                                              Value="">
                                     <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CaptureMessage}"
+                                             Value="Reading text…">
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource FloatingToolsBrushAccentHoliday}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CaptureMessage}"
+                                             Value="No text detected.">
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource FloatingToolsBrushStatusWarning}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

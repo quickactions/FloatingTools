@@ -201,12 +201,13 @@ public partial class TranslationToolViewModel : ObservableObject
 
         LastCaptureProducedText = false;
         IsCapturingText = true;
-        CaptureMessage = null;
+        CaptureMessage = "Reading text…";
         ErrorMessage = null;
         LastCaptureStatus = null;
         try
         {
             var result = await _screenTextCaptureService.CaptureTextAsync();
+            CaptureMessage = null;
             LastCaptureStatus = result.Status;
             switch (result.Status)
             {
@@ -226,6 +227,7 @@ public partial class TranslationToolViewModel : ObservableObject
         }
         catch
         {
+            CaptureMessage = null;
             LastCaptureStatus = ScreenTextCaptureStatus.Failed;
             ErrorMessage = "Could not read text from the selected area.";
         }

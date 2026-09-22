@@ -88,8 +88,8 @@ public partial class App : Application
             _quickChatHttpClient,
             quickChatConfigurationProvider);
         var placementService = new WindowPlacementService();
-        _localOcrService = new TesseractLocalOcrService(
-            Path.Combine(AppContext.BaseDirectory, "tessdata"));
+        _localOcrService = new RapidOcrLocalOcrService(
+            Path.Combine(AppContext.BaseDirectory, "models", "v5"));
         var screenTextCaptureService = new ScreenTextCaptureService(
             placementService,
             new WindowsScreenRegionCaptureService(),

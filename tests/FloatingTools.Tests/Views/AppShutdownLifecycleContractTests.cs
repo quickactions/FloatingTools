@@ -17,6 +17,7 @@ public sealed class AppShutdownLifecycleContractTests
             (string?)appXaml.Root?.Attribute("ShutdownMode"));
         Assert.Contains("Application.Current?.Shutdown()", coordinator);
         Assert.Contains("MainWindow = toolbarWindow;", appCode);
+        Assert.Contains("_localOcrService?.Dispose();", appCode);
         Assert.DoesNotContain("Environment.Exit", appCode);
         Assert.DoesNotContain("Process.Kill", appCode);
         Assert.DoesNotContain("Dispatcher.InvokeShutdown", coordinator);

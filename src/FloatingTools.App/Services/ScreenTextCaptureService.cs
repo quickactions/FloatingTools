@@ -86,6 +86,27 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
         }
         foreach (var window in visibleWindows) window.Closed += OnAuxiliaryClosed;
         var suspensionStarted = false;
+        var suspensionFinished = false;
+
+        void FinishCaptureSuspension()
+        {
+            if (!suspensionStarted || suspensionFinished)
+            {
+                return;
+            }
+
+            suspensionFinished = true;
+            foreach (var window in visibleWindows)
+            {
+                window.Closed -= OnAuxiliaryClosed;
+                if (!_shutdown && !closedWindows.Contains(window) && !window.IsVisible)
+                {
+                    window.Show();
+                }
+            }
+
+            CaptureFinished?.Invoke(this, EventArgs.Empty);
+        }
 
         try
         {
@@ -118,6 +139,7 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
                 selection.Value,
                 cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
+            FinishCaptureSuspension();
             var text = await _ocrService.RecognizeEnglishAsync(
                 image,
                 cancellationToken);
@@ -136,21 +158,21 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
         }
         finally
         {
+            // Preserve the previous completion ordering for cancellation or a
+            // failure before a safe image buffer exists. Successful captures
+            // finish their UI suspension above while OCR remains active.
+            if (!suspensionFinished)
+            {
+                _activeCapture = null;
+            }
+
             try
             {
-                foreach (var window in visibleWindows)
-                {
-                    window.Closed -= OnAuxiliaryClosed;
-                    if (!_shutdown && !closedWindows.Contains(window) && !window.IsVisible)
-                    {
-                        window.Show();
-                    }
-                }
+                FinishCaptureSuspension();
             }
             finally
             {
                 _activeCapture = null;
-                if (suspensionStarted) CaptureFinished?.Invoke(this, EventArgs.Empty);
             }
         }
     }

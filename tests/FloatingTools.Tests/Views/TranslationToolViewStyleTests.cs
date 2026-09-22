@@ -218,6 +218,35 @@ public sealed class TranslationToolViewStyleTests
     }
 
     [Fact]
+    public void CaptureStatus_UsesDistinctThemeAwareInformationalAndNoTextColors()
+    {
+        var document = XDocument.Load(FindTranslationToolViewPath());
+        XNamespace presentation =
+            "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+
+        var status = document.Descendants(presentation + "TextBlock")
+            .Single(element => (string?)element.Attribute("Text")
+                == "{Binding CaptureMessage}");
+        var triggers = status.Descendants(presentation + "DataTrigger").ToArray();
+
+        Assert.Equal("SemiBold", (string?)status.Attribute("FontWeight"));
+        Assert.Contains(triggers, trigger =>
+            (string?)trigger.Attribute("Value") == "Reading text…"
+            && TriggerSets(
+                trigger,
+                presentation,
+                "Foreground",
+                "{DynamicResource FloatingToolsBrushAccentHoliday}"));
+        Assert.Contains(triggers, trigger =>
+            (string?)trigger.Attribute("Value") == "No text detected."
+            && TriggerSets(
+                trigger,
+                presentation,
+                "Foreground",
+                "{DynamicResource FloatingToolsBrushStatusWarning}"));
+    }
+
+    [Fact]
     public void Composer_UsesFullWidthEditorWithBottomActionRow()
     {
         var document = XDocument.Load(FindTranslationToolViewPath());
@@ -373,6 +402,15 @@ public sealed class TranslationToolViewStyleTests
         trigger.Elements(presentation + "Setter").Any(setter =>
             (string?)setter.Attribute("Property") == "Visibility"
             && (string?)setter.Attribute("Value") == "Collapsed");
+
+    private static bool TriggerSets(
+        XElement trigger,
+        XNamespace presentation,
+        string property,
+        string value) =>
+        trigger.Elements(presentation + "Setter").Any(setter =>
+            (string?)setter.Attribute("Property") == property
+            && (string?)setter.Attribute("Value") == value);
 
     private static string FindTranslationToolViewPath()
     {

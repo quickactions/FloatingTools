@@ -301,6 +301,7 @@ public sealed class PanelVisibilityRuntimeTests
         => WpfTestApplication.Run(() =>
         {
             using var harness = ShortcutHarness.Create(ToolId.Calendar, capturedText);
+            harness.Translation.InputText = "Previous translation text";
             harness.ClosePanel();
 
             harness.RunCapture();
@@ -310,8 +311,16 @@ public sealed class PanelVisibilityRuntimeTests
                 shouldOpenTranslation ? ToolId.Translation : ToolId.Calendar,
                 harness.ViewModel.ActiveTool);
             Assert.Equal(
-                shouldOpenTranslation ? "Hello from OCR" : string.Empty,
+                shouldOpenTranslation ? "Hello from OCR" : "Previous translation text",
                 harness.Translation.InputText);
+            Assert.Equal(
+                capturedText is not null && !shouldOpenTranslation,
+                harness.Toolbar.IsTransientStatusVisible);
+            Assert.Equal(
+                capturedText is not null && !shouldOpenTranslation
+                    ? "No text detected."
+                    : string.Empty,
+                harness.Toolbar.TransientStatusText);
         });
 
     [Fact]
@@ -471,6 +480,137 @@ public sealed class PanelVisibilityRuntimeTests
             }
         });
 
+    [Theory]
+    [InlineData("success")]
+    [InlineData("no-text")]
+    [InlineData("failure")]
+    [InlineData("cancel")]
+    [InlineData("shutdown")]
+    public void ProductionCapture_RestoresAfterPixelsWhileOcrRemainsPending(
+        string outcome)
+        => WpfTestApplication.Run(() =>
+        {
+            var vm = new FloatingToolbarViewModel(ToolId.Translation);
+            vm.SelectToolCommand.Execute(ToolId.Translation);
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid() + ".json");
+            var settings = new AppSettings();
+            var store = new SettingsService(path);
+            var placement = new WindowPlacementService();
+            var toolbar = new ToolbarWindow(placement, store, settings);
+            var overlay = new ControlledOverlay();
+            var regionCapture = new PendingRegionCapture(() => overlay.Closed);
+            var ocr = new PendingOcr();
+            var capture = new ScreenTextCaptureService(
+                placement,
+                regionCapture,
+                ocr,
+                _ => overlay,
+                () => placement.GetMonitors().First(monitor => monitor.IsPrimary));
+            using var fixture = PanelFixture.Create(vm, capture);
+            using var hotkeys = new GlobalHotkeyService();
+            using var theme = new ThemeService(
+                AppAppearanceMode.Dark,
+                new AppAppearanceResolver(),
+                new WindowsThemeWatcher(),
+                new ResourceDictionary());
+            var coordinator = fixture.Coordinator(
+                toolbar, vm, placement, store, settings, hotkeys, theme, capture);
+            var originalMain = Application.Current.MainWindow;
+            try
+            {
+                Application.Current.MainWindow = toolbar;
+                coordinator.ShowToolbar();
+                coordinator.ShowPanel();
+
+                var operation = fixture.Translation.CaptureTextCommand.ExecuteAsync(null);
+                DrainDispatcher();
+
+                Assert.Equal("Reading text…", fixture.Translation.CaptureMessage);
+                Assert.Equal(WindowState.Minimized, toolbar.WindowState);
+                Assert.False(fixture.Window.IsVisible);
+
+                overlay.Selection.SetResult(new PixelRect(0, 0, 10, 10));
+                WaitUntil(() => regionCapture.Started.Task.IsCompleted);
+
+                Assert.True(regionCapture.OverlayWasClosedAtCapture);
+                Assert.Equal(WindowState.Minimized, toolbar.WindowState);
+                Assert.False(fixture.Window.IsVisible);
+                Assert.False(ocr.Started.Task.IsCompleted);
+
+                regionCapture.Completion.SetResult(new CapturedScreenImage([1]));
+                WaitUntil(() =>
+                    ocr.Started.Task.IsCompleted
+                    && toolbar.WindowState == WindowState.Normal
+                    && fixture.Window.IsVisible);
+
+                Assert.False(operation.IsCompleted);
+                Assert.True(capture.IsCapturing);
+                Assert.Equal("Reading text…", fixture.Translation.CaptureMessage);
+
+                switch (outcome)
+                {
+                    case "success":
+                        ocr.Completion.SetResult("Captured while visible");
+                        break;
+                    case "no-text":
+                        ocr.Completion.SetResult(string.Empty);
+                        break;
+                    case "failure":
+                        ocr.Completion.SetException(new InvalidOperationException("OCR failed"));
+                        break;
+                    case "cancel":
+                        capture.CancelActiveCapture();
+                        break;
+                    case "shutdown":
+                        coordinator.CloseAll();
+                        break;
+                }
+                WaitForCapture(operation);
+                DrainDispatcher();
+
+                Assert.False(capture.IsCapturing);
+                if (outcome == "shutdown")
+                {
+                    Assert.False(toolbar.IsVisible);
+                    Assert.False(fixture.Window.IsVisible);
+                    Assert.Equal(ScreenTextCaptureStatus.Cancelled, fixture.Translation.LastCaptureStatus);
+                }
+                else
+                {
+                    Assert.Equal(WindowState.Normal, toolbar.WindowState);
+                    Assert.True(fixture.Window.IsVisible);
+                }
+
+                switch (outcome)
+                {
+                    case "success":
+                        Assert.Equal("Captured while visible", fixture.Translation.InputText);
+                        Assert.Null(fixture.Translation.CaptureMessage);
+                        break;
+                    case "no-text":
+                        Assert.Equal("No text detected.", fixture.Translation.CaptureMessage);
+                        Assert.Equal(string.Empty, fixture.Translation.InputText);
+                        break;
+                    case "failure":
+                        Assert.Equal(
+                            "Could not read text from the selected area.",
+                            fixture.Translation.ErrorMessage);
+                        Assert.Null(fixture.Translation.CaptureMessage);
+                        break;
+                    default:
+                        Assert.Null(fixture.Translation.CaptureMessage);
+                        Assert.Equal(string.Empty, fixture.Translation.InputText);
+                        break;
+                }
+            }
+            finally
+            {
+                coordinator.CloseAll();
+                Application.Current.MainWindow = originalMain;
+                System.IO.File.Delete(path);
+            }
+        });
+
     private static void WaitForCapture(Task task)
     {
         var dispatcher = Dispatcher.CurrentDispatcher;
@@ -483,6 +623,34 @@ public sealed class PanelVisibilityRuntimeTests
         try { Dispatcher.PushFrame(frame); }
         finally { timeout.Stop(); }
         Assert.True(task.IsCompleted, "Capture must finish after its selection completes or is cancelled.");
+    }
+
+    private static void WaitUntil(Func<bool> condition)
+    {
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        var frame = new DispatcherFrame();
+        var timeout = new DispatcherTimer(DispatcherPriority.Send)
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
+        var probe = new DispatcherTimer(DispatcherPriority.ApplicationIdle)
+        {
+            Interval = TimeSpan.FromMilliseconds(10)
+        };
+        timeout.Tick += (_, _) => frame.Continue = false;
+        probe.Tick += (_, _) =>
+        {
+            if (condition()) frame.Continue = false;
+        };
+        timeout.Start();
+        probe.Start();
+        try { Dispatcher.PushFrame(frame); }
+        finally
+        {
+            probe.Stop();
+            timeout.Stop();
+        }
+        Assert.True(condition(), "Capture lifecycle did not reach its expected intermediate state.");
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
@@ -503,10 +671,50 @@ public sealed class PanelVisibilityRuntimeTests
             => Task.FromResult(new CapturedScreenImage([1]));
     }
 
+    private sealed class PendingRegionCapture(Func<bool> overlayWasClosed)
+        : IScreenRegionCaptureService
+    {
+        public TaskCompletionSource<bool> Started { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<CapturedScreenImage> Completion { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool OverlayWasClosedAtCapture { get; private set; }
+
+        public async Task<CapturedScreenImage> CaptureAsync(
+            PixelRect region,
+            CancellationToken cancellationToken = default)
+        {
+            OverlayWasClosedAtCapture = overlayWasClosed();
+            Started.TrySetResult(true);
+            return await Completion.Task.WaitAsync(cancellationToken);
+        }
+    }
+
     private sealed class FakeOcr(string text = "Hello world") : ILocalOcrService
     {
         public Task<string> RecognizeEnglishAsync(CapturedScreenImage image, CancellationToken cancellationToken = default)
             => Task.FromResult(text);
+        public void Dispose() { }
+    }
+
+    private sealed class PendingOcr : ILocalOcrService
+    {
+        public TaskCompletionSource<bool> Started { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<string> Completion { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<string> RecognizeEnglishAsync(
+            CapturedScreenImage image,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult(true);
+            return await Completion.Task.WaitAsync(cancellationToken);
+        }
+
         public void Dispose() { }
     }
 

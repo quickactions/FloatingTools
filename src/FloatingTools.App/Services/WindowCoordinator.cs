@@ -488,6 +488,13 @@ public sealed class WindowCoordinator
 
         if (!_translationToolViewModel.LastCaptureProducedText)
         {
+            if (_translationToolViewModel.LastCaptureStatus == ScreenTextCaptureStatus.NoText
+                && !_capturePanelWasVisible
+                && !_visibilitySession.IsHidden)
+            {
+                ToolbarWindow.ShowTransientStatus("No text detected.");
+            }
+
             return;
         }
 
