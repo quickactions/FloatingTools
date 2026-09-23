@@ -15,7 +15,7 @@ public static class NoteWordExporter
     private const long EmusPerDip = 9525;
     private const uint PageWidthTwips = 11906;
     private const uint PageHeightTwips = 16838;
-    private const uint PageMarginTwips = 1134;
+    private const uint PageMarginTwips = 1440;
     private const long PrintableWidthEmus = (PageWidthTwips - (PageMarginTwips * 2L)) * 635L;
 
     public static NoteExportResult Create(NoteDocument note)
@@ -91,8 +91,8 @@ public static class NoteWordExporter
     private static W.Paragraph CreateTitleParagraph(string title)
     {
         var isRtl = ParagraphDirectionResolver.Resolve(title) == System.Windows.FlowDirection.RightToLeft;
-        var properties = CreateParagraphProperties(isRtl, afterTwips: 240);
-        var runProperties = CreateRunProperties(isRtl, isBold: true, fontSize: "36");
+        var properties = CreateTitleParagraphProperties(isRtl);
+        var runProperties = CreateRunProperties(isRtl, isBold: true, fontSize: "36", fontFamily: "Segoe UI");
         return new W.Paragraph(
             properties,
             new W.Run(runProperties, CreateText(title)));
@@ -104,7 +104,7 @@ public static class NoteWordExporter
         ParagraphSlice slice,
         bool isRtl)
     {
-        var paragraph = new W.Paragraph(CreateParagraphProperties(isRtl, afterTwips: 120));
+        var paragraph = new W.Paragraph(CreateBodyParagraphProperties(isRtl));
         AppendPlainRun(paragraph, block.Text, slice.Start, slice.End - slice.Start, isRtl);
         if (!paragraph.Elements<W.Run>().Any())
         {
@@ -239,20 +239,36 @@ public static class NoteWordExporter
                     new W.FontSize { Val = "18" }),
                 CreateText("Image unavailable")));
 
-    private static W.ParagraphProperties CreateParagraphProperties(bool isRtl, int afterTwips)
+    private static W.ParagraphProperties CreateBodyParagraphProperties(bool isRtl)
     {
         var properties = new W.ParagraphProperties();
-        if (isRtl)
+        if (!isRtl)
         {
-            properties.Append(new W.BiDi());
+            properties.Append(new W.BiDi { Val = false });
         }
 
-        properties.Append(
-            new W.SpacingBetweenLines { After = afterTwips.ToString() },
-            new W.Justification
-            {
-                Val = isRtl ? W.JustificationValues.Right : W.JustificationValues.Left
-            });
+        properties.Append(new W.SpacingBetweenLines { After = "120" });
+        if (!isRtl)
+        {
+            properties.Append(new W.Justification { Val = W.JustificationValues.Left });
+        }
+
+        return properties;
+    }
+
+    private static W.ParagraphProperties CreateTitleParagraphProperties(bool isRtl)
+    {
+        var properties = new W.ParagraphProperties();
+        if (!isRtl)
+        {
+            properties.Append(new W.BiDi { Val = false });
+        }
+
+        properties.Append(new W.SpacingBetweenLines { After = "240" });
+        if (!isRtl)
+        {
+            properties.Append(new W.Justification { Val = W.JustificationValues.Left });
+        }
 
         return properties;
     }
@@ -260,14 +276,15 @@ public static class NoteWordExporter
     private static W.RunProperties CreateRunProperties(
         bool isRtl,
         bool isBold = false,
-        string fontSize = "22")
+        string fontSize = "22",
+        string fontFamily = "Arial")
     {
         var properties = new W.RunProperties(
             new W.RunFonts
             {
-                Ascii = "Segoe UI",
-                HighAnsi = "Segoe UI",
-                ComplexScript = "Segoe UI"
+                Ascii = fontFamily,
+                HighAnsi = fontFamily,
+                ComplexScript = fontFamily
             });
         if (isBold)
         {

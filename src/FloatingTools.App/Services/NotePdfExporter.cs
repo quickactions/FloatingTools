@@ -194,7 +194,7 @@ public static class NotePdfExporter
 
             context.Graphics.DrawImage(
                 source,
-                PageMargin,
+                CenterImageX(context.ContentWidth, width),
                 context.CursorY,
                 width,
                 height);
@@ -209,6 +209,9 @@ public static class NotePdfExporter
             return false;
         }
     }
+
+    internal static double CenterImageX(double contentWidth, double imageWidth) =>
+        PageMargin + (contentWidth - imageWidth) / 2;
 
     private static void DrawImagePlaceholder(PdfDocument document, ref PageContext context)
     {

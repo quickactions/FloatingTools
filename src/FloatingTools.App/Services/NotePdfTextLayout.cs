@@ -44,7 +44,11 @@ internal sealed class NotePdfTextLayout : IDisposable
                 textBlock.Height = lineHeight;
                 textBlock.Arrange(new Rect(0, 0, lineWidth, lineHeight));
                 drawing.DrawRectangle(
-                    new VisualBrush(textBlock),
+                    new VisualBrush(textBlock)
+                    {
+                        ViewboxUnits = BrushMappingMode.Absolute,
+                        Viewbox = new Rect(0, 0, lineWidth, lineHeight)
+                    },
                     null,
                     new Rect(x, y, lineWidth, lineHeight));
                 lines.Add(new NotePdfTextLineLayout(x, lineWidth, y, lineHeight, width));
@@ -73,7 +77,8 @@ internal sealed class NotePdfTextLayout : IDisposable
             Padding = new Thickness(0),
             TextWrapping = TextWrapping.Wrap,
             FlowDirection = direction,
-            TextAlignment = direction == FlowDirection.RightToLeft ? TextAlignment.Right : TextAlignment.Left,
+            // WPF mirrors TextAlignment inside RTL flow; Left is the physical right edge.
+            TextAlignment = TextAlignment.Left,
             FontFamily = typeface.FontFamily,
             FontStyle = typeface.Style,
             FontWeight = typeface.Weight,
