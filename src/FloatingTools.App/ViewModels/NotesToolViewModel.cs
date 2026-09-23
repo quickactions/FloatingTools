@@ -203,6 +203,10 @@ public partial class NotesToolViewModel : ObservableObject
     private Task ExportNoteWordAsync(NoteDocument? note) =>
         ExportNoteAsync(note, NoteExportFormat.Word);
 
+    [RelayCommand]
+    private Task ExportNoteMarkdownAsync(NoteDocument? note) =>
+        ExportNoteAsync(note, NoteExportFormat.Markdown);
+
     private async Task ExportNoteAsync(NoteDocument? note, NoteExportFormat format)
     {
         if (note is null)

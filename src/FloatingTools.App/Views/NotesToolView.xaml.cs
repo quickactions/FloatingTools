@@ -597,6 +597,15 @@ public partial class NotesToolView : UserControl
             viewModel.ExportNoteWordCommand.Execute(note);
         }
     }
+    private void ExportMarkdownMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (GetContextNote(sender) is { } note
+            && DataContext is NotesToolViewModel viewModel)
+        {
+            viewModel.ExportNoteMarkdownCommand.Execute(note);
+        }
+    }
+
 
     private void NoteActionsButton_OnClick(object sender, RoutedEventArgs e)
     {

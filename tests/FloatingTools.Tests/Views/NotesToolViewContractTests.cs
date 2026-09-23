@@ -593,7 +593,7 @@ public sealed class NotesToolViewContractTests
     }
 
     [Fact]
-    public void NoteActionsMenu_ExposesPdfAndWordExports()
+    public void NoteActionsMenu_ExposesPdfWordAndMarkdownExports()
     {
         var document = XDocument.Load(FindPath("NotesToolView.xaml"));
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
@@ -606,7 +606,7 @@ public sealed class NotesToolViewContractTests
         var submenuPopup = template.Descendants(presentation + "Popup")
             .Single(popup => (string?)popup.Attribute(x + "Name") == "PART_Popup");
 
-        Assert.True(export.Elements(presentation + "MenuItem").Count() == 2);
+        Assert.Equal(3, export.Elements(presentation + "MenuItem").Count());
         Assert.Null(export.Attribute("Click"));
         Assert.Equal("True", (string?)export.Attribute("StaysOpenOnClick"));
         Assert.Contains(export.Elements(presentation + "MenuItem"), item =>
@@ -614,7 +614,10 @@ public sealed class NotesToolViewContractTests
             && (string?)item.Attribute("Click") == "ExportPdfMenuItem_OnClick");
         Assert.Contains(export.Elements(presentation + "MenuItem"), item =>
             (string?)item.Attribute("Header") == "Word (.docx)"
-            && (string?)item.Attribute("Click") == "ExportWordMenuItem_OnClick");
+            && (string?)item.Attribute("Click") == "ExportWordMenuItem_OnClick");        Assert.Contains(export.Elements(presentation + "MenuItem"), item =>
+            (string?)item.Attribute("Header") == "Markdown for AI (.md / .zip)"
+            && (string?)item.Attribute("Click") == "ExportMarkdownMenuItem_OnClick");
+
         Assert.Equal("Right", (string?)submenuPopup.Attribute("Placement"));
         Assert.Equal(
             "{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}",

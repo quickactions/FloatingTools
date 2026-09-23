@@ -607,12 +607,15 @@ public sealed class RichNotesViewModelTests
 
         Assert.True(viewModel.ExportNotePdfCommand.CanExecute(note));
         Assert.True(viewModel.ExportNoteWordCommand.CanExecute(note));
+        Assert.True(viewModel.ExportNoteMarkdownCommand.CanExecute(note));
 
         await viewModel.ExportNotePdfCommand.ExecuteAsync(note);
         await viewModel.ExportNoteWordCommand.ExecuteAsync(note);
+        await viewModel.ExportNoteMarkdownCommand.ExecuteAsync(note);
 
         Assert.Equal(
-            [(note.Id, NoteExportFormat.Pdf), (note.Id, NoteExportFormat.Word)],
+            [(note.Id, NoteExportFormat.Pdf), (note.Id, NoteExportFormat.Word),
+                (note.Id, NoteExportFormat.Markdown)],
             exporter.Calls);
     }
 

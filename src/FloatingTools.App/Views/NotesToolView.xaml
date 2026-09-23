@@ -614,6 +614,9 @@
                                                         <MenuItem Header="Word (.docx)"
                                                                   Style="{StaticResource NotesActionMenuItemStyle}"
                                                                   Click="ExportWordMenuItem_OnClick" />
+                                                        <MenuItem Header="Markdown for AI (.md / .zip)"
+                                                                  Style="{StaticResource NotesActionMenuItemStyle}"
+                                                                  Click="ExportMarkdownMenuItem_OnClick" />
                                                     </MenuItem>
                                                     <MenuItem Header="Delete"
                                                               Style="{StaticResource NotesActionMenuItemStyle}"
