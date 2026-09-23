@@ -383,7 +383,12 @@
                                                  TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                                                  Style="{StaticResource QuickChatComposerTextBoxStyle}"
                                                  Text="{Binding DraftText, UpdateSourceTrigger=PropertyChanged}"
-                                                 PreviewKeyDown="ComposerTextBox_OnPreviewKeyDown" />
+                                                 PreviewKeyDown="ComposerTextBox_OnPreviewKeyDown">
+                        <controls:DirectionalTextBox.Resources>
+                            <Style TargetType="{x:Type ScrollBar}"
+                                   BasedOn="{StaticResource FloatingToolsSharedMinimalScrollBarStyle}" />
+                        </controls:DirectionalTextBox.Resources>
+                    </controls:DirectionalTextBox>
                     <Grid Grid.Row="2" Margin="0,4,0,0" FlowDirection="LeftToRight">
                         <Button HorizontalAlignment="Left" Style="{StaticResource FloatingToolsSharedIconButtonStyle}"
                                 Content="+" IsEnabled="{Binding CanAttachImage}" Click="AttachImageButton_OnClick"

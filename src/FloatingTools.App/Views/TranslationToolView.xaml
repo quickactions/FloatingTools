@@ -619,7 +619,12 @@
                                                      HorizontalScrollBarVisibility="Disabled"
                                                      Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      PreviewKeyDown="ComposerTextBox_OnPreviewKeyDown"
-                                                     AutomationProperties.Name="Translation input" />
+                                                     AutomationProperties.Name="Translation input">
+                            <controls:DirectionalTextBox.Resources>
+                                <Style TargetType="{x:Type ScrollBar}"
+                                       BasedOn="{StaticResource FloatingToolsSharedMinimalScrollBarStyle}" />
+                            </controls:DirectionalTextBox.Resources>
+                        </controls:DirectionalTextBox>
 
                         <TextBlock Margin="12,0,4,0"
                                    Text="Type in Hebrew or English"
