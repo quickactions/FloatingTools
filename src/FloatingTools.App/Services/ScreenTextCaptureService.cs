@@ -6,6 +6,11 @@ using FloatingTools.App.Views;
 
 namespace FloatingTools.App.Services;
 
+internal sealed class CaptureFinishedEventArgs(bool selectionCompleted) : EventArgs
+{
+    public bool SelectionCompleted { get; } = selectionCompleted;
+}
+
 public sealed class ScreenTextCaptureService : IScreenTextCaptureService
 {
     private readonly WindowPlacementService _placementService;
@@ -17,7 +22,7 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
     private bool _shutdown;
 
     internal event EventHandler? CaptureStarting;
-    internal event EventHandler? CaptureFinished;
+    internal event EventHandler<CaptureFinishedEventArgs>? CaptureFinished;
     internal bool IsCapturing => _activeCapture is not null;
 
     internal void CancelActiveCapture() => _activeCapture?.Cancel();
@@ -87,6 +92,7 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
         foreach (var window in visibleWindows) window.Closed += OnAuxiliaryClosed;
         var suspensionStarted = false;
         var suspensionFinished = false;
+        var selectionCompleted = false;
 
         void FinishCaptureSuspension()
         {
@@ -105,7 +111,7 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
                 }
             }
 
-            CaptureFinished?.Invoke(this, EventArgs.Empty);
+            CaptureFinished?.Invoke(this, new CaptureFinishedEventArgs(selectionCompleted));
         }
 
         try
@@ -129,6 +135,7 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
                 return ScreenTextCaptureResult.Cancelled();
             }
 
+            selectionCompleted = true;
             cancellationToken.ThrowIfCancellationRequested();
             await application.Dispatcher.InvokeAsync(
                 static () => { },
@@ -150,11 +157,15 @@ public sealed class ScreenTextCaptureService : IScreenTextCaptureService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return ScreenTextCaptureResult.Cancelled();
+            return new ScreenTextCaptureResult(
+                ScreenTextCaptureStatus.Cancelled,
+                SelectionCompleted: selectionCompleted);
         }
         catch
         {
-            return ScreenTextCaptureResult.Failed();
+            return new ScreenTextCaptureResult(
+                ScreenTextCaptureStatus.Failed,
+                SelectionCompleted: selectionCompleted);
         }
         finally
         {

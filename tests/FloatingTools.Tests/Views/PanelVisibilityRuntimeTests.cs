@@ -337,7 +337,7 @@ public sealed class PanelVisibilityRuntimeTests
         });
 
     [Fact]
-    public void OcrShortcutWhileApplicationHidden_PreservesTranslationForNextRestore()
+    public void OcrShortcutWhileApplicationHidden_RestoresAfterCompletedSelection()
         => WpfTestApplication.Run(() =>
         {
             using var harness = ShortcutHarness.Create(ToolId.Calendar, "Hidden capture");
@@ -347,17 +347,160 @@ public sealed class PanelVisibilityRuntimeTests
 
             harness.RunCapture();
 
-            Assert.Equal(WindowState.Minimized, harness.Toolbar.WindowState);
-            Assert.False(harness.Panel.IsVisible);
-            Assert.Equal(ToolId.Translation, harness.ViewModel.ActiveTool);
-            Assert.Equal("Hidden capture", harness.Translation.InputText);
-
-            harness.ToggleApplicationVisibility();
-
             Assert.Equal(WindowState.Normal, harness.Toolbar.WindowState);
             Assert.True(harness.Panel.IsVisible);
             Assert.Equal(ToolId.Translation, harness.ViewModel.ActiveTool);
             Assert.Equal("Hidden capture", harness.Translation.InputText);
+            Assert.Equal(0, harness.Translator.CallCount);
+        });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HiddenSuccessfulCapture_OpensTranslationEvenIfPanelWasClosed(bool translate)
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, "Captured words");
+            harness.ClosePanel();
+            harness.ToggleApplicationVisibility();
+
+            harness.RunCapture(translate);
+
+            Assert.Equal(WindowState.Normal, harness.Toolbar.WindowState);
+            Assert.True(harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Translation, harness.ViewModel.ActiveTool);
+            Assert.Equal(translate ? 1 : 0, harness.Translator.CallCount);
+            if (translate) Assert.Equal("Captured words", harness.Translator.LastText);
+            else Assert.Equal("Captured words", harness.Translation.InputText);
+        });
+
+    [Fact]
+    public void CaptureAndTranslateHotkey_SendsOnlyTheNewCapture()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, "New OCR words");
+            harness.Translation.InputText = "old draft";
+            harness.ClosePanel();
+
+            harness.RunCapture(translate: true);
+
+            Assert.True(harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Translation, harness.ViewModel.ActiveTool);
+            Assert.Equal(1, harness.Translator.CallCount);
+            Assert.Equal("New OCR words", harness.Translator.LastText);
+        });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HiddenNoText_RestoresPreviousPanelStateAndShowsToolbarStatus(bool panelWasOpen)
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, "");
+            harness.Translation.InputText = "keep draft";
+            if (!panelWasOpen) harness.ClosePanel();
+            harness.ToggleApplicationVisibility();
+
+            harness.RunCapture(translate: true);
+
+            Assert.Equal(WindowState.Normal, harness.Toolbar.WindowState);
+            Assert.Equal(panelWasOpen, harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Calendar, harness.ViewModel.ActiveTool);
+            Assert.Equal("keep draft", harness.Translation.InputText);
+            Assert.Equal(0, harness.Translator.CallCount);
+            Assert.True(harness.Toolbar.IsTransientStatusVisible);
+            Assert.Equal("No text detected.", harness.Toolbar.TransientStatusText);
+        });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HiddenCancelledSelection_PreservesHiddenState(bool panelWasOpen)
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, null);
+            harness.Translation.InputText = "keep draft";
+            if (!panelWasOpen) harness.ClosePanel();
+            harness.ToggleApplicationVisibility();
+
+            harness.RunCapture(translate: true);
+
+            Assert.Equal(WindowState.Minimized, harness.Toolbar.WindowState);
+            Assert.False(harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Calendar, harness.ViewModel.ActiveTool);
+            Assert.Equal("keep draft", harness.Translation.InputText);
+            Assert.Equal(0, harness.Translator.CallCount);
+            Assert.False(harness.Toolbar.IsTransientStatusVisible);
+            harness.ToggleApplicationVisibility();
+            Assert.Equal(panelWasOpen, harness.Panel.IsVisible);
+        });
+
+    [Fact]
+    public void CaptureAndTranslate_SupersedesAnInFlightTranslation()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Translation, "Captured text");
+            harness.Translator.HoldFirstRequest = true;
+            harness.Translation.InputText = "Earlier draft";
+            var earlier = harness.Translation.SendCommand.ExecuteAsync(null);
+            Assert.Equal(1, harness.Translator.CallCount);
+
+            harness.RunCapture(translate: true);
+            WaitForCapture(earlier);
+
+            Assert.Equal(2, harness.Translator.CallCount);
+            Assert.True(harness.Translator.FirstRequestCancelled);
+            Assert.Equal("Captured text", harness.Translator.LastText);
+            Assert.Equal("Captured text", Assert.Single(harness.Translation.Items).SourceText);
+        });
+
+    [Fact]
+    public void ShutdownDuringHotkeySelection_DoesNotSendOrRestoreUi()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, "Captured text");
+            harness.ShutdownDuringCapture();
+
+            Assert.Equal(0, harness.Translator.CallCount);
+            Assert.False(harness.Toolbar.IsVisible);
+            Assert.False(harness.Panel.IsVisible);
+        });
+
+    [Fact]
+    public void HiddenOcrFailure_RestoresToolbarAndShowsAccessibleFeedback()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(
+                ToolId.Calendar, "selected", ocrFails: true);
+            harness.Translation.InputText = "keep draft";
+            harness.ClosePanel();
+            harness.ToggleApplicationVisibility();
+
+            harness.RunCapture(translate: true);
+
+            Assert.Equal(WindowState.Normal, harness.Toolbar.WindowState);
+            Assert.False(harness.Panel.IsVisible);
+            Assert.Equal(ToolId.Calendar, harness.ViewModel.ActiveTool);
+            Assert.Equal("keep draft", harness.Translation.InputText);
+            Assert.Equal(0, harness.Translator.CallCount);
+            Assert.True(harness.Toolbar.IsTransientStatusVisible);
+            Assert.Equal("Could not read text from the selected area.",
+                harness.Toolbar.TransientStatusText);
+        });
+
+    [Fact]
+    public void CaptureAndTranslateOverLimit_LeavesTextForManualEditing()
+        => WpfTestApplication.Run(() =>
+        {
+            var text = string.Join(' ', Enumerable.Repeat("word", 31));
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, text);
+
+            harness.RunCapture(translate: true);
+
+            Assert.Equal(text, harness.Translation.InputText);
+            Assert.Equal(0, harness.Translator.CallCount);
+            Assert.Equal(TranslationInputLimits.MaximumWordCountMessage,
+                harness.Translation.InputValidationMessage);
         });
 
     [Theory]
@@ -463,7 +606,9 @@ public sealed class PanelVisibilityRuntimeTests
                 {
                     Assert.Equal(0, toolbarHiddenEvents);
                     Assert.True(auxiliary.IsVisible);
-                    var remainsHidden = (initiallyHidden && outcome != "restore" && outcome != "hotkey-restore") || outcome == "hide-during-capture";
+                    var remainsHidden = (initiallyHidden && outcome != "success"
+                        && outcome != "restore" && outcome != "hotkey-restore")
+                        || outcome == "hide-during-capture";
                     Assert.Equal(remainsHidden ? WindowState.Minimized : WindowState.Normal, toolbar.WindowState);
                     if (!remainsHidden) Assert.Equal(panelVisible, fixture.Window.IsVisible);
                     else Assert.Equal(normalPlacement, settings.WindowPlacement);
@@ -699,6 +844,16 @@ public sealed class PanelVisibilityRuntimeTests
         public void Dispose() { }
     }
 
+    private sealed class ThrowingOcr : ILocalOcrService
+    {
+        public Task<string> RecognizeEnglishAsync(
+            CapturedScreenImage image,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<string>(new InvalidOperationException("OCR failed"));
+
+        public void Dispose() { }
+    }
+
     private sealed class PendingOcr : ILocalOcrService
     {
         public TaskCompletionSource<bool> Started { get; } = new(
@@ -741,7 +896,8 @@ public sealed class PanelVisibilityRuntimeTests
             FloatingToolbarViewModel viewModel,
             ControlledOverlay overlay,
             ScreenTextCaptureService capture,
-            string? capturedText)
+            string? capturedText,
+            RecordingTranslationService translator)
         {
             _settingsPath = settingsPath;
             _originalMainWindow = originalMainWindow;
@@ -754,14 +910,17 @@ public sealed class PanelVisibilityRuntimeTests
             _overlay = overlay;
             _capture = capture;
             _capturedText = capturedText;
+            Translator = translator;
         }
 
+        public RecordingTranslationService Translator { get; }
         public ToolbarWindow Toolbar { get; }
         public PanelWindow Panel => _fixture.Window;
         public FloatingToolbarViewModel ViewModel { get; }
         public TranslationToolViewModel Translation => _fixture.Translation;
 
-        public static ShortcutHarness Create(ToolId initialTool, string? capturedText)
+        public static ShortcutHarness Create(
+            ToolId initialTool, string? capturedText, bool ocrFails = false)
         {
             var viewModel = new FloatingToolbarViewModel(initialTool);
             viewModel.SelectToolCommand.Execute(initialTool);
@@ -775,10 +934,13 @@ public sealed class PanelVisibilityRuntimeTests
             var capture = new ScreenTextCaptureService(
                 placement,
                 new FakeRegionCapture(),
-                new FakeOcr(capturedText ?? string.Empty),
+                ocrFails
+                    ? new ThrowingOcr()
+                    : new FakeOcr(capturedText ?? string.Empty),
                 _ => overlay,
                 () => placement.GetMonitors().First(monitor => monitor.IsPrimary));
-            var fixture = PanelFixture.Create(viewModel, capture);
+            var translator = new RecordingTranslationService();
+            var fixture = PanelFixture.Create(viewModel, capture, translator);
             var hotkeys = new GlobalHotkeyService();
             var theme = new ThemeService(
                 AppAppearanceMode.Dark,
@@ -803,7 +965,8 @@ public sealed class PanelVisibilityRuntimeTests
                 viewModel,
                 overlay,
                 capture,
-                capturedText);
+                capturedText,
+                translator);
         }
 
         public void ClosePanel()
@@ -819,15 +982,32 @@ public sealed class PanelVisibilityRuntimeTests
             DrainDispatcher();
         }
 
-        public void RunCapture()
+        public void ShutdownDuringCapture()
         {
-            InvokeCoordinator("TriggerExtractTextFromScreen");
+            var operation = (Task)typeof(WindowCoordinator).GetMethod(
+                "CaptureFromHotkeyAsync",
+                System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance)!
+                .Invoke(_coordinator, [true])!;
+            DrainDispatcher();
+            Assert.True(_capture.IsCapturing);
+            _coordinator.CloseAll();
+            WaitForCapture(operation);
+            DrainDispatcher();
+        }
+
+        public void RunCapture(bool translate = false)
+        {
+            var operation = (Task)typeof(WindowCoordinator).GetMethod(
+                "CaptureFromHotkeyAsync",
+                System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance)!
+                .Invoke(_coordinator, [translate])!;
             DrainDispatcher();
             Assert.True(_capture.IsCapturing);
             _overlay.Selection.SetResult(
                 _capturedText is null ? null : new PixelRect(0, 0, 10, 10));
-            WaitUntil(() => !_capture.IsCapturing
-                && Translation.LastCaptureStatus is not null);
+            WaitForCapture(operation);
             DrainDispatcher();
         }
 
@@ -875,6 +1055,46 @@ public sealed class PanelVisibilityRuntimeTests
         }
     }
 
+    private sealed class RecordingTranslationService : ITranslationService
+    {
+        public int CallCount { get; private set; }
+        public string? LastText { get; private set; }
+        public bool HoldFirstRequest { get; set; }
+        public bool FirstRequestCancelled { get; private set; }
+
+        public Task<TranslationResult> TranslateAsync(
+            string text,
+            string? sourceLanguage,
+            string targetLanguage,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastText = text;
+            if (HoldFirstRequest && CallCount == 1)
+            {
+                var pending = new TaskCompletionSource<TranslationResult>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                cancellationToken.Register(() =>
+                {
+                    FirstRequestCancelled = true;
+                    pending.TrySetCanceled(cancellationToken);
+                });
+                return pending.Task;
+            }
+
+            return Task.FromResult(new TranslationResult(
+                "translated", sourceLanguage, "Test", targetLanguage: targetLanguage));
+        }
+
+        public Task<string?> TranslateAlternativeAsync(
+            string sourceText,
+            string sourceLanguage,
+            string targetLanguage,
+            string primaryTranslation,
+            IReadOnlyList<string> existingAlternatives,
+            CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    }
+
     private sealed class PanelFixture(
         PanelWindow window,
         TranslationToolViewModel translation,
@@ -894,14 +1114,15 @@ public sealed class PanelVisibilityRuntimeTests
 
         public static PanelFixture Create(
             FloatingToolbarViewModel toolbarViewModel,
-            IScreenTextCaptureService? screenTextCaptureService = null)
+            IScreenTextCaptureService? screenTextCaptureService = null,
+            ITranslationService? translationService = null)
         {
             var savedWords = new SavedWordsService(new InMemorySavedWordsStore());
             savedWords.InitializeAsync().GetAwaiter().GetResult();
             var frequentWords = new FrequentWordsService(new InMemoryFrequentWordsStore());
             frequentWords.InitializeAsync().GetAwaiter().GetResult();
             var translation = new TranslationToolViewModel(
-                new UnconfiguredTranslationService(),
+                translationService ?? new UnconfiguredTranslationService(),
                 new InMemoryTranslationHistoryStore(),
                 new NullClipboardService(),
                 savedWords,

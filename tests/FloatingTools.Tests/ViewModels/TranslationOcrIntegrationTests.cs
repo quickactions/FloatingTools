@@ -251,6 +251,69 @@ public sealed class TranslationOcrIntegrationTests
         Assert.Single(context.ViewModel.Items);
     }
 
+    [Fact]
+    public async Task ShortcutCapture_ReturnsOnlyItsOwnAppliedTextAndRejectsOverlap()
+    {
+        var pending = new TaskCompletionSource<ScreenTextCaptureResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var translation = new RecordingTranslationService();
+        var context = await CreateContextAsync(
+            translation, new SequenceScreenTextCaptureService(pending.Task));
+
+        var current = context.ViewModel.CaptureTextForShortcutAsync();
+        context.ViewModel.InputText = "edited while OCR runs";
+        var overlap = await context.ViewModel.CaptureTextForShortcutAsync();
+        Assert.False(overlap.Started);
+
+        pending.SetResult(ScreenTextCaptureResult.Success("New OCR text"));
+        var outcome = await current;
+
+        Assert.True(outcome.Started);
+        Assert.True(outcome.SelectionCompleted);
+        Assert.Equal(ScreenTextCaptureStatus.Success, outcome.Status);
+        Assert.Equal("New OCR text", outcome.AppliedText);
+        Assert.Equal("New OCR text", context.ViewModel.InputText);
+        Assert.Equal(0, translation.CallCount);
+    }
+
+    [Theory]
+    [InlineData(ScreenTextCaptureStatus.Cancelled)]
+    [InlineData(ScreenTextCaptureStatus.NoText)]
+    [InlineData(ScreenTextCaptureStatus.Failed)]
+    public async Task ShortcutCapture_UnsuccessfulAttemptNeverReturnsStaleText(
+        ScreenTextCaptureStatus status)
+    {
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            new SequenceScreenTextCaptureService(
+                Task.FromResult(ScreenTextCaptureResult.Success("First OCR")),
+                Task.FromResult(new ScreenTextCaptureResult(status))));
+        var first = await context.ViewModel.CaptureTextForShortcutAsync();
+        var second = await context.ViewModel.CaptureTextForShortcutAsync();
+
+        Assert.Equal("First OCR", first.AppliedText);
+        Assert.Null(second.AppliedText);
+        Assert.False(context.ViewModel.LastCaptureProducedText);
+        Assert.Equal("First OCR", context.ViewModel.InputText);
+    }
+
+    [Fact]
+    public async Task ShortcutCapture_FocusFailureDoesNotReturnTextForSending()
+    {
+        var context = await CreateContextAsync(
+            new RecordingTranslationService(),
+            new StubScreenTextCaptureService(ScreenTextCaptureResult.Success("OCR text")));
+        context.ViewModel.ComposerFocusRequested += (_, _) =>
+            throw new InvalidOperationException("Focus failed");
+
+        var outcome = await context.ViewModel.CaptureTextForShortcutAsync();
+
+        Assert.True(outcome.Started);
+        Assert.Null(outcome.AppliedText);
+        Assert.Equal(ScreenTextCaptureStatus.Failed, outcome.Status);
+        Assert.False(context.ViewModel.LastCaptureProducedText);
+    }
+
     private static async Task<TestContext> CreateContextAsync(
         RecordingTranslationService translationService,
         IScreenTextCaptureService captureService)

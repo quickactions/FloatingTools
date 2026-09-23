@@ -23,11 +23,14 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
         Assert.Contains("if (_globalHotkeysRegistered)", registerBody);
         Assert.Contains("ShowHideHotkeyId", registerBody);
         Assert.Contains("ExtractTextHotkeyId", registerBody);
+        Assert.Contains("CaptureOnlyHotkeyId", registerBody);
         Assert.Contains("Key.H", registerBody);
         Assert.Contains("Key.T", registerBody);
+        Assert.Contains("Key.C", registerBody);
         Assert.Contains("ModifierKeys.Control | ModifierKeys.Alt", registerBody);
         Assert.Contains("ToggleApplicationVisibility", registerBody);
         Assert.Contains("TriggerExtractTextFromScreen", registerBody);
+        Assert.Contains("TriggerCaptureAndTranslateFromScreen", registerBody);
     }
 
     [Fact]
@@ -37,6 +40,7 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
 
         Assert.Contains("internal const int ShowHideHotkeyId = 1;", code);
         Assert.Contains("internal const int ExtractTextHotkeyId = 2;", code);
+        Assert.Contains("internal const int CaptureOnlyHotkeyId = 3;", code);
     }
 
     [Theory]
@@ -44,6 +48,8 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
     [InlineData("private void HideApplicationVisibility()")]
     [InlineData("private void RestoreApplicationVisibility()")]
     [InlineData("private async void TriggerExtractTextFromScreen()")]
+    [InlineData("private async void TriggerCaptureAndTranslateFromScreen()")]
+    [InlineData("private async Task CaptureFromHotkeyAsync(bool translate)")]
     public void VisibilityAndCaptureMethods_NeverMutatePanelStateOrReachTheExitPath(
         string methodSignature)
     {
@@ -61,41 +67,67 @@ public sealed class WindowCoordinatorGlobalShortcutContractTests
     public void ExtractTextHotkey_RoutesToTheExistingCaptureTextCommandWithoutDuplicatingCaptureOrOcr()
     {
         var code = ReadWindowCoordinatorSource();
-        var body = ExtractMethodBody(code, "private async void TriggerExtractTextFromScreen()");
+        var captureOnly = ExtractMethodBody(
+            code, "private async void TriggerExtractTextFromScreen()");
+        var captureAndTranslate = ExtractMethodBody(
+            code, "private async void TriggerCaptureAndTranslateFromScreen()");
+        var shared = ExtractMethodBody(
+            code, "private async Task CaptureFromHotkeyAsync(bool translate)");
 
-        Assert.Contains(
-            "_translationToolViewModel.CaptureTextCommand.ExecuteAsync(null)", body);
-        Assert.Contains(
-            "_viewModel.SelectToolCommand.Execute(ToolId.Translation)", body);
-        Assert.DoesNotContain("IScreenTextCaptureService", body);
-        Assert.DoesNotContain("ScreenCaptureOverlayWindow", body);
-        Assert.DoesNotContain("ILocalOcrService", body);
+        Assert.Contains("CaptureFromHotkeyAsync(translate: false)", captureOnly);
+        Assert.Contains("CaptureFromHotkeyAsync(translate: true)", captureAndTranslate);
+        Assert.Contains("_translationToolViewModel.CaptureTextForShortcutAsync()", shared);
+        Assert.Contains("_viewModel.SelectToolCommand.Execute(ToolId.Translation)", shared);
+        Assert.Contains("_translationToolViewModel.SendCommand.ExecuteAsync(null)", shared);
+        Assert.DoesNotContain("IScreenTextCaptureService", shared);
+        Assert.DoesNotContain("ScreenCaptureOverlayWindow", shared);
+        Assert.DoesNotContain("ILocalOcrService", shared);
     }
 
     [Fact]
     public void ExtractTextHotkey_OnlyShowsTranslationWhenCaptureAppliedUsefulText()
     {
         var code = ReadWindowCoordinatorSource();
-        var body = ExtractMethodBody(code, "private async void TriggerExtractTextFromScreen()");
+        var body = ExtractMethodBody(
+            code, "private async Task CaptureFromHotkeyAsync(bool translate)");
 
-        var guardIndex = body.IndexOf(
-            "LastCaptureProducedText", StringComparison.Ordinal);
+        var guardIndex = body.IndexOf("outcome.AppliedText is null", StringComparison.Ordinal);
         var selectIndex = body.IndexOf(
             "_viewModel.SelectToolCommand.Execute(ToolId.Translation)",
             StringComparison.Ordinal);
 
         Assert.True(guardIndex >= 0, "Captures without applied text must be guarded.");
-        Assert.True(selectIndex >= 0, "A useful capture still opens Translation.");
-        Assert.True(
-            guardIndex < selectIndex,
-            "The useful-text guard must run before the tool switch.");
-        Assert.Contains("LastCaptureStatus == ScreenTextCaptureStatus.NoText", body);
-        Assert.Contains("!_capturePanelWasVisible", body);
-        Assert.Contains("ToolbarWindow.ShowTransientStatus(\"No text detected.\")", body);
-        Assert.Contains("if (_visibilitySession.IsHidden)", body);
+        Assert.True(selectIndex > guardIndex, "A useful capture still opens Translation.");
+        Assert.Contains("outcome.SelectionCompleted", body);
+        Assert.Contains("ShowCaptureStatus(\"No text detected.\", wasHidden)", body);
         Assert.Contains("_capturePanelWasVisible = true;", body);
         Assert.Contains("if (!_restoreCapturePanelOnNormal)", body);
         Assert.Contains("ShowPanel();", body);
+        Assert.Contains("if (!translate || IsStopping)", body);
+        Assert.Contains("_translationToolViewModel.InputText = outcome.AppliedText;", body);
+        Assert.Contains("_translationToolViewModel.SendCommand.CanExecute(null)", body);
+    }
+
+    [Fact]
+    public void CompletedSelectionRestoresAnExplicitlyHiddenApplication()
+    {
+        var code = ReadWindowCoordinatorSource();
+        var body = ExtractMethodBody(
+            code, "private void OnCaptureFinished(object? sender, CaptureFinishedEventArgs e)");
+
+        Assert.Contains("if (e.SelectionCompleted) RestoreApplicationVisibility();", body);
+    }
+
+    [Fact]
+    public void RegistrationFailuresReportBothNewShortcuts()
+    {
+        var code = ReadWindowCoordinatorSource();
+        var body = ExtractMethodBody(
+            code, "private void UpdateGlobalShortcutsStatus(");
+
+        Assert.Contains("Capture & Translate (Ctrl+Alt+T)", body);
+        Assert.Contains("Capture Text (Ctrl+Alt+C)", body);
+        Assert.Contains("Show/Hide (Ctrl+Alt+H)", body);
     }
 
     [Fact]

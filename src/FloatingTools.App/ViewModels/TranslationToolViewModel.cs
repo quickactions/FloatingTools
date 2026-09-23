@@ -10,6 +10,12 @@ using FloatingTools.App.SharedUi.Direction;
 
 namespace FloatingTools.App.ViewModels;
 
+internal readonly record struct CaptureTextOutcome(
+    bool Started,
+    bool SelectionCompleted,
+    ScreenTextCaptureStatus? Status,
+    string? AppliedText);
+
 public partial class TranslationToolViewModel : ObservableObject
 {
     private readonly ITranslationService _translationService;
@@ -184,19 +190,21 @@ public partial class TranslationToolViewModel : ObservableObject
     public event EventHandler? ComposerFocusRequested;
 
     /// <summary>
-    /// Outcome of the most recent Extract Text from Screen run. Callers that
-    /// react to a capture (the global Ctrl+Alt+T handler) use this to avoid
-    /// pulling the user into Translation when they cancelled the capture.
+    /// Outcome of the most recent capture for existing status consumers.
+    /// Global shortcuts use CaptureTextOutcome for their own invocation.
     /// </summary>
     public ScreenTextCaptureStatus? LastCaptureStatus { get; private set; }
 
     public bool LastCaptureProducedText { get; private set; }
 
-    private async Task CaptureTextAsync()
+    private async Task CaptureTextAsync() =>
+        await CaptureTextForShortcutAsync();
+
+    internal async Task<CaptureTextOutcome> CaptureTextForShortcutAsync()
     {
         if (IsCapturingText)
         {
-            return;
+            return default;
         }
 
         LastCaptureProducedText = false;
@@ -209,11 +217,13 @@ public partial class TranslationToolViewModel : ObservableObject
             var result = await _screenTextCaptureService.CaptureTextAsync();
             CaptureMessage = null;
             LastCaptureStatus = result.Status;
+            string? appliedText = null;
             switch (result.Status)
             {
                 case ScreenTextCaptureStatus.Success
                     when !string.IsNullOrWhiteSpace(result.Text):
                     InputText = result.Text;
+                    appliedText = result.Text;
                     LastCaptureProducedText = true;
                     ComposerFocusRequested?.Invoke(this, EventArgs.Empty);
                     break;
@@ -224,12 +234,20 @@ public partial class TranslationToolViewModel : ObservableObject
                     ErrorMessage = "Could not read text from the selected area.";
                     break;
             }
+
+            return new CaptureTextOutcome(
+                Started: true,
+                result.SelectionCompleted,
+                result.Status,
+                appliedText);
         }
         catch
         {
+            LastCaptureProducedText = false;
             CaptureMessage = null;
             LastCaptureStatus = ScreenTextCaptureStatus.Failed;
             ErrorMessage = "Could not read text from the selected area.";
+            return new CaptureTextOutcome(true, false, ScreenTextCaptureStatus.Failed, null);
         }
         finally
         {

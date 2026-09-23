@@ -273,7 +273,11 @@
             <TextBlock Text="Show/Hide FloatingTools: Ctrl+Alt+H"
                        Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
                        FontSize="12" />
-            <TextBlock Text="Extract Text from Screen: Ctrl+Alt+T"
+            <TextBlock Text="Capture &amp; Translate: Ctrl+Alt+T"
+                       Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                       FontSize="12"
+                       Margin="0,2,0,0" />
+            <TextBlock Text="Capture Text: Ctrl+Alt+C"
                        Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
                        FontSize="12"
                        Margin="0,2,0,0" />

@@ -14,6 +14,7 @@ public sealed class WindowCoordinator
 {
     internal const int ShowHideHotkeyId = 1;
     internal const int ExtractTextHotkeyId = 2;
+    internal const int CaptureOnlyHotkeyId = 3;
 
     private readonly FloatingToolbarViewModel _viewModel;
     private readonly WindowPlacementService _placementService;
@@ -40,6 +41,8 @@ public sealed class WindowCoordinator
     private bool _restoreAfterCapture;
     private bool _restoreCapturePanelOnNormal;
     private bool _exitRequested;
+    private string? _pendingCaptureStatus;
+    private bool _openTranslationAfterHiddenCapture;
     private bool IsStopping => _isClosing || _exitRequested;
 
     public WindowCoordinator(
@@ -314,14 +317,23 @@ public sealed class WindowCoordinator
             ModifierKeys.Control | ModifierKeys.Alt,
             Key.H,
             ToggleApplicationVisibility);
-        var extractTextRegistered = _globalHotkeyService.TryRegister(
+        var captureTranslateRegistered = _globalHotkeyService.TryRegister(
             handle,
             ExtractTextHotkeyId,
             ModifierKeys.Control | ModifierKeys.Alt,
             Key.T,
+            TriggerCaptureAndTranslateFromScreen);
+        var captureOnlyRegistered = _globalHotkeyService.TryRegister(
+            handle,
+            CaptureOnlyHotkeyId,
+            ModifierKeys.Control | ModifierKeys.Alt,
+            Key.C,
             TriggerExtractTextFromScreen);
 
-        UpdateGlobalShortcutsStatus(showHideRegistered, extractTextRegistered);
+        UpdateGlobalShortcutsStatus(
+            showHideRegistered,
+            captureTranslateRegistered,
+            captureOnlyRegistered);
     }
 
     private void EnsureThemeWatcherStarted()
@@ -341,9 +353,12 @@ public sealed class WindowCoordinator
         _themeService.StartLiveWatcher(handle);
     }
 
-    private void UpdateGlobalShortcutsStatus(bool showHideRegistered, bool extractTextRegistered)
+    private void UpdateGlobalShortcutsStatus(
+        bool showHideRegistered,
+        bool captureTranslateRegistered,
+        bool captureOnlyRegistered)
     {
-        if (showHideRegistered && extractTextRegistered)
+        if (showHideRegistered && captureTranslateRegistered && captureOnlyRegistered)
         {
             _translationToolViewModel.Settings.GlobalShortcutsStatusMessage = null;
             return;
@@ -355,9 +370,14 @@ public sealed class WindowCoordinator
             unavailable.Add("Show/Hide (Ctrl+Alt+H)");
         }
 
-        if (!extractTextRegistered)
+        if (!captureTranslateRegistered)
         {
-            unavailable.Add("Extract Text (Ctrl+Alt+T)");
+            unavailable.Add("Capture & Translate (Ctrl+Alt+T)");
+        }
+
+        if (!captureOnlyRegistered)
+        {
+            unavailable.Add("Capture Text (Ctrl+Alt+C)");
         }
 
         var message =
@@ -387,6 +407,7 @@ public sealed class WindowCoordinator
     {
         _restoreAfterCapture = false;
         _restoreCapturePanelOnNormal = false;
+        _openTranslationAfterHiddenCapture = false;
         if (_captureSuspended)
         {
             _visibilitySession.Hide(_capturePanelWasVisible);
@@ -420,7 +441,9 @@ public sealed class WindowCoordinator
             return;
         }
 
-        if (_visibilitySession.PanelWasVisibleBeforeHide)
+        var openCapturedTranslation = _openTranslationAfterHiddenCapture;
+        _openTranslationAfterHiddenCapture = false;
+        if (_visibilitySession.PanelWasVisibleBeforeHide || openCapturedTranslation)
         {
             ShowPanel();
         }
@@ -430,6 +453,7 @@ public sealed class WindowCoordinator
             ShowToolbar();
         }
         ToolbarWindow.Activate();
+        TryShowPendingCaptureStatus();
     }
 
     private void OnToolbarNormalPlacementReady(object? sender, EventArgs e)
@@ -442,6 +466,7 @@ public sealed class WindowCoordinator
             if (_capturePanelWasVisible) ShowPanel(); else HidePanel();
         }
         else if (_viewModel.PanelState != PanelState.Closed) ShowPanel();
+        TryShowPendingCaptureStatus();
     }
 
     private void OnCaptureStarting(object? sender, EventArgs e)
@@ -451,6 +476,8 @@ public sealed class WindowCoordinator
         _capturePanelWasVisible = PanelWindow.IsVisible && !_visibilitySession.IsHidden;
         _captureToolbarState = ToolbarWindow.WindowState;
         _restoreAfterCapture = false;
+        _pendingCaptureStatus = null;
+        _openTranslationAfterHiddenCapture = false;
         _captureSuspended = true;
         ToolbarWindow.DeferRestoreForCapture = true;
         ToolbarWindow.MinimizeUi();
@@ -458,7 +485,7 @@ public sealed class WindowCoordinator
 
     private void OnCaptureRestoreRequested(object? sender, EventArgs e) => RestoreApplicationVisibility();
 
-    private void OnCaptureFinished(object? sender, EventArgs e)
+    private void OnCaptureFinished(object? sender, CaptureFinishedEventArgs e)
     {
         // A native restore may be queued just as capture completes. Preserve
         // that intent even if its dispatcher callback has not run yet.
@@ -471,7 +498,12 @@ public sealed class WindowCoordinator
             RestoreApplicationVisibility();
             return;
         }
-        if (_visibilitySession.IsHidden || (!_restoreAfterCapture && _captureToolbarState == WindowState.Minimized)) return;
+        if (_visibilitySession.IsHidden)
+        {
+            if (e.SelectionCompleted) RestoreApplicationVisibility();
+            return;
+        }
+        if (!_restoreAfterCapture && _captureToolbarState == WindowState.Minimized) return;
         _restoreCapturePanelOnNormal = true;
         if (ToolbarWindow.CanUseNormalPlacement) OnToolbarNormalPlacementReady(this, EventArgs.Empty);
         else ToolbarWindow.RestoreUi();
@@ -479,20 +511,45 @@ public sealed class WindowCoordinator
 
     private async void TriggerExtractTextFromScreen()
     {
-        if (_isClosing)
+        await CaptureFromHotkeyAsync(translate: false);
+    }
+
+    private async void TriggerCaptureAndTranslateFromScreen()
+    {
+        await CaptureFromHotkeyAsync(translate: true);
+    }
+
+    private async Task CaptureFromHotkeyAsync(bool translate)
+    {
+        if (IsStopping || _translationToolViewModel.IsCapturingText)
         {
             return;
         }
 
-        await _translationToolViewModel.CaptureTextCommand.ExecuteAsync(null);
-
-        if (!_translationToolViewModel.LastCaptureProducedText)
+        var wasHidden = _visibilitySession.IsHidden;
+        var outcome = await _translationToolViewModel.CaptureTextForShortcutAsync();
+        if (IsStopping || !outcome.Started)
         {
-            if (_translationToolViewModel.LastCaptureStatus == ScreenTextCaptureStatus.NoText
-                && !_capturePanelWasVisible
-                && !_visibilitySession.IsHidden)
+            return;
+        }
+
+        if (outcome.AppliedText is null)
+        {
+            if (outcome.SelectionCompleted && (wasHidden || !_visibilitySession.IsHidden))
             {
-                ToolbarWindow.ShowTransientStatus("No text detected.");
+                if (outcome.Status is ScreenTextCaptureStatus.NoText
+                    || outcome.Status is ScreenTextCaptureStatus.Success)
+                {
+                    if (wasHidden || !_capturePanelWasVisible)
+                        ShowCaptureStatus("No text detected.", wasHidden);
+                }
+                else if (outcome.Status == ScreenTextCaptureStatus.Failed
+                    && (wasHidden || !PanelWindow.IsVisible
+                        || _viewModel.ActiveTool != ToolId.Translation))
+                {
+                    ShowCaptureStatus(
+                        "Could not read text from the selected area.", wasHidden);
+                }
             }
 
             return;
@@ -501,14 +558,57 @@ public sealed class WindowCoordinator
         _viewModel.SelectToolCommand.Execute(ToolId.Translation);
         if (_visibilitySession.IsHidden)
         {
+            if (outcome.SelectionCompleted && wasHidden)
+                _openTranslationAfterHiddenCapture = true;
+        }
+        else
+        {
+            _capturePanelWasVisible = true;
+            if (!_restoreCapturePanelOnNormal)
+            {
+                ShowPanel();
+            }
+        }
+
+        if (!translate || IsStopping)
+        {
             return;
         }
 
-        _capturePanelWasVisible = true;
-        if (!_restoreCapturePanelOnNormal)
+        // Send snapshots InputText before its first await. Restore this invocation's
+        // OCR text if an earlier translation or user edit changed the composer.
+        _translationToolViewModel.InputText = outcome.AppliedText;
+        if (_translationToolViewModel.SendCommand.CanExecute(null))
         {
-            ShowPanel();
+            await _translationToolViewModel.SendCommand.ExecuteAsync(null);
         }
+    }
+
+    private void ShowCaptureStatus(string message, bool afterHiddenRestore)
+    {
+        if (!afterHiddenRestore)
+        {
+            ToolbarWindow.ShowTransientStatus(message);
+            return;
+        }
+
+        // A minimized toolbar dismisses status during restoration. Show the
+        // pending result after its existing normal-placement path finishes.
+        _pendingCaptureStatus = message;
+        TryShowPendingCaptureStatus();
+    }
+
+    private void TryShowPendingCaptureStatus()
+    {
+        if (_pendingCaptureStatus is null || IsStopping || _captureSuspended
+            || _visibilitySession.IsHidden || !ToolbarWindow.CanUseNormalPlacement)
+        {
+            return;
+        }
+
+        var message = _pendingCaptureStatus;
+        _pendingCaptureStatus = null;
+        ToolbarWindow.ShowTransientStatus(message);
     }
 
     private void OnTranslationRequested(object? sender, EventArgs e)
