@@ -15,6 +15,7 @@ internal readonly record struct CaptureTextOutcome(
     bool SelectionCompleted,
     ScreenTextCaptureStatus? Status,
     string? AppliedText);
+public sealed record ContextualWordTranslationRequest(string Word, string Context);
 
 public partial class TranslationToolViewModel : ObservableObject
 {
@@ -36,6 +37,7 @@ public partial class TranslationToolViewModel : ObservableObject
     private string _inputText = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TranslateEnglishWordInContextCommand))]
     private bool _isTranslating;
 
     [ObservableProperty]
@@ -289,11 +291,59 @@ public partial class TranslationToolViewModel : ObservableObject
             return;
         }
 
-        using var timing = DebugAiRequestTiming.Start("translation", "ui_pipeline");
         var sourceText = InputText;
         var direction = TranslationDirectionResolver.Resolve(
             sourceText,
             _appSettings.LanguageMode);
+        await ExecuteTranslationAsync(
+            sourceText,
+            direction,
+            clearComposerOnSuccess: true,
+            "ui_pipeline",
+            cancellationToken => _translationService.TranslateAsync(
+                sourceText,
+                direction.SourceLanguage,
+                direction.TargetLanguage,
+                cancellationToken));
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanTranslateEnglishWordInContext),
+        AllowConcurrentExecutions = false)]
+    private async Task TranslateEnglishWordInContextAsync(
+        ContextualWordTranslationRequest? request)
+    {
+        if (!CanTranslateEnglishWordInContext(request))
+        {
+            return;
+        }
+
+        var direction = new TranslationDirection(
+            TranslationDirectionResolver.EnglishLanguageCode,
+            TranslationDirectionResolver.HebrewLanguageCode);
+        await ExecuteTranslationAsync(
+            request!.Word,
+            direction,
+            clearComposerOnSuccess: false,
+            "contextual_word_ui_pipeline",
+            cancellationToken => _translationService.TranslateEnglishWordInContextAsync(
+                request.Word,
+                request.Context,
+                cancellationToken));
+    }
+
+    private bool CanTranslateEnglishWordInContext(ContextualWordTranslationRequest? request) =>
+        !IsTranslating
+        && request is { Word.Length: > 0, Context.Length: > 0 };
+
+    private async Task ExecuteTranslationAsync(
+        string sourceText,
+        TranslationDirection direction,
+        bool clearComposerOnSuccess,
+        string timingOperation,
+        Func<CancellationToken, Task<TranslationResult>> translateAsync)
+    {
+        using var timing = DebugAiRequestTiming.Start("translation", timingOperation);
         var requestId = Interlocked.Increment(ref _latestTranslationRequestId);
         var requestCancellation = new CancellationTokenSource();
         var previousCancellation = Interlocked.Exchange(
@@ -308,11 +358,7 @@ public partial class TranslationToolViewModel : ObservableObject
         try
         {
             timing.Mark("service_request_started");
-            var result = await _translationService.TranslateAsync(
-                sourceText,
-                direction.SourceLanguage,
-                direction.TargetLanguage,
-                requestCancellation.Token);
+            var result = await translateAsync(requestCancellation.Token);
             timing.Mark("service_result_available");
             if (requestId != Volatile.Read(ref _latestTranslationRequestId))
             {
@@ -332,9 +378,7 @@ public partial class TranslationToolViewModel : ObservableObject
                 LastUsedAt = now
             };
 
-            await _historyStore.AddOrUpdateAsync(
-                entry,
-                requestCancellation.Token);
+            await _historyStore.AddOrUpdateAsync(entry, requestCancellation.Token);
             timing.Mark("history_persisted");
             if (requestId != Volatile.Read(ref _latestTranslationRequestId))
             {
@@ -344,7 +388,10 @@ public partial class TranslationToolViewModel : ObservableObject
 
             Items.Add(CreateEntryViewModel(entry));
             ApplyHistoryLimit(_appSettings.HistoryLimit);
-            InputText = string.Empty;
+            if (clearComposerOnSuccess)
+            {
+                InputText = string.Empty;
+            }
             timing.Mark("ui_updated");
 
             if (result.CorrectionStatus != TranslationCorrectionStatus.Ambiguous
@@ -373,13 +420,11 @@ public partial class TranslationToolViewModel : ObservableObject
         catch (OperationCanceledException)
             when (requestCancellation.IsCancellationRequested)
         {
-            // A newer request superseded this one. Only its result may update the UI.
             timing.Complete("cancelled");
         }
         catch (Exception)
             when (requestId != Volatile.Read(ref _latestTranslationRequestId))
         {
-            // Ignore failures from a request that has already been superseded.
             timing.Complete("superseded");
         }
         catch (TranslationProviderNotConfiguredException exception)
@@ -414,7 +459,6 @@ public partial class TranslationToolViewModel : ObservableObject
             requestCancellation.Dispose();
         }
     }
-
     [RelayCommand(CanExecute = nameof(CanClearInput))]
     private void ClearInput()
     {

@@ -15,6 +15,15 @@ public sealed class UnconfiguredTranslationService : ITranslationService
             new TranslationProviderNotConfiguredException());
     }
 
+    public Task<TranslationResult> TranslateEnglishWordInContextAsync(
+        string word,
+        string context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<TranslationResult>(
+            new TranslationProviderNotConfiguredException());
+    }
     public Task<string?> TranslateAlternativeAsync(
         string sourceText,
         string sourceLanguage,

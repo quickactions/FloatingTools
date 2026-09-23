@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using FloatingTools.App.Services;
 using FloatingTools.App.ViewModels;
 
 namespace FloatingTools.App.Views;
@@ -46,6 +47,61 @@ public partial class TranslationToolView : UserControl
                 FeedScrollViewer.ScrollToEnd();
                 ComposerTextBox.Focus();
             });
+    }
+
+    private void EntryTextBox_OnPreviewMouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (sender is not TextBox textBox
+            || textBox.DataContext is not TranslationEntryViewModel entry
+            || _viewModel is null
+            || _viewModel.IsTranslating)
+        {
+            return;
+        }
+
+        if (!TryCreateContextualWordTranslationRequest(
+                textBox,
+                e.GetPosition(textBox),
+                out var request))
+        {
+            return;
+        }
+
+        if (_viewModel.TranslateEnglishWordInContextCommand.CanExecute(request))
+        {
+            _viewModel.TranslateEnglishWordInContextCommand.Execute(request);
+        }
+    }
+    internal static bool TryCreateContextualWordTranslationRequest(
+        TextBox textBox,
+        Point pointerPosition,
+        out ContextualWordTranslationRequest? request)
+    {
+        ArgumentNullException.ThrowIfNull(textBox);
+        request = null;
+        if (textBox.DataContext is not TranslationEntryViewModel entry)
+        {
+            return false;
+        }
+
+        var characterIndex = textBox.GetCharacterIndexFromPoint(
+            pointerPosition,
+            snapToText: false);
+        if (!EnglishWordSelectionHelper.TryExtract(
+                textBox.Text,
+                characterIndex,
+                out var selection))
+        {
+            return false;
+        }
+
+        var context = Equals(textBox.Tag, "Source")
+            ? entry.SourceText
+            : entry.MainTranslation;
+        request = new ContextualWordTranslationRequest(selection.Word, context);
+        return true;
     }
 
     private void ComposerTextBox_OnPreviewKeyDown(

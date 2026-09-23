@@ -842,6 +842,33 @@ public sealed class OpenAiTranslationServiceTests
             exception.FailureKind);
     }
 
+    [Fact]
+    public async Task ContextualEnglishWord_RequestSeparatesWordAndContextAndForcesHebrew()
+    {
+        string? capturedBody = null;
+        var service = CreateService(async (request, cancellationToken) =>
+        {
+            capturedBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return JsonResponse(
+                HttpStatusCode.OK,
+                ResponseWithTranslation("להגיש מועמדות", "en", targetLanguage: "he"));
+        });
+
+        var result = await service.TranslateEnglishWordInContextAsync(
+            "apply",
+            "I'm going to apply for a job.",
+            CancellationToken.None);
+
+        Assert.Equal("להגיש מועמדות", result.MainTranslation);
+        Assert.Equal("en", result.DetectedLanguage);
+        Assert.Equal("he", result.TargetLanguage);
+        Assert.NotNull(capturedBody);
+        Assert.Contains("Translate only the selected English word", GetInstructions(capturedBody));
+        Assert.Contains("never the full sentence", GetInstructions(capturedBody));
+        Assert.Equal(
+            "Selected English word:\napply\n\nContext:\nI'm going to apply for a job.",
+            GetInput(capturedBody));
+    }
     private static OpenAiTranslationService CreateService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send,
         bool isConfigured = true)

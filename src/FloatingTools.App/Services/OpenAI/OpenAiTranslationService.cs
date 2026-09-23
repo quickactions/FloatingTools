@@ -71,16 +71,62 @@ public sealed class OpenAiTranslationService : ITranslationService
             text,
             detectedLanguage,
             targetLanguage);
-        timing.Mark("payload_built");
+        var result = await SendTranslationRequestAsync(
+            text,
+            detectedLanguage,
+            targetLanguage,
+            configuration.ApiKey,
+            requestBody,
+            timing,
+            cancellationToken);
+        _translationCache.TryAdd(cacheKey, result);
+        timing.Mark("result_ready");
+        timing.Complete("success");
+        return result;
+    }
 
+    public async Task<TranslationResult> TranslateEnglishWordInContextAsync(
+        string word,
+        string context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(word);
+        ArgumentException.ThrowIfNullOrWhiteSpace(context);
+
+        using var timing = DebugAiRequestTiming.Start("translation", "contextual_word_request");
+        var configuration = _configurationProvider.GetConfiguration()
+            ?? throw new TranslationProviderNotConfiguredException();
+        timing.SetModel(configuration.Model);
+        timing.Mark("configuration_resolved");
+        var requestBody = CreateContextualWordRequestBody(configuration.Model, word, context);
+        var result = await SendTranslationRequestAsync(
+            word,
+            TranslationDirectionResolver.EnglishLanguageCode,
+            TranslationDirectionResolver.HebrewLanguageCode,
+            configuration.ApiKey,
+            requestBody,
+            timing,
+            cancellationToken);
+        timing.Mark("result_ready");
+        timing.Complete("success");
+        return result;
+    }
+
+    private async Task<TranslationResult> SendTranslationRequestAsync(
+        string sourceText,
+        string sourceLanguage,
+        string targetLanguage,
+        string apiKey,
+        object requestBody,
+        DebugAiRequestTiming timing,
+        CancellationToken cancellationToken)
+    {
+        timing.Mark("payload_built");
         using var request = new HttpRequestMessage(HttpMethod.Post, "responses")
         {
-            Content = JsonContent.Create(
-                requestBody,
-                options: SerializerOptions)
+            Content = JsonContent.Create(requestBody, options: SerializerOptions)
         };
-        request.Headers.Authorization =
-            new AuthenticationHeaderValue("Bearer", configuration.ApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         timing.Mark("request_prepared");
 
         HttpResponseMessage response;
@@ -113,6 +159,7 @@ public sealed class OpenAiTranslationService : ITranslationService
                 "No network connection. Check your connection and try again.",
                 exception);
         }
+
         using (response)
         {
             if (!response.IsSuccessStatusCode)
@@ -142,7 +189,6 @@ public sealed class OpenAiTranslationService : ITranslationService
             }
 
             ThrowIfIncomplete(responseBody);
-
             var outputText = responseBody?.Output?
                 .SelectMany(item => item.Content ?? [])
                 .FirstOrDefault(content => content.Type == "output_text")
@@ -151,19 +197,18 @@ public sealed class OpenAiTranslationService : ITranslationService
             var correctionStatus = ParseCorrectionStatus(payload.CorrectionStatus);
             var correctedSourceText = NormalizeCorrection(
                 payload.CorrectedSourceText,
-                text,
+                sourceText,
                 correctionStatus);
-
             if (correctionStatus != TranslationCorrectionStatus.Ambiguous
                 && string.IsNullOrWhiteSpace(payload.TranslatedText))
             {
                 throw EmptyResponseException();
             }
 
-            var result = new TranslationResult(
+            return new TranslationResult(
                 payload.TranslatedText?.Trim() ?? string.Empty,
                 string.IsNullOrWhiteSpace(payload.DetectedSourceLanguage)
-                    ? detectedLanguage
+                    ? sourceLanguage
                     : payload.DetectedSourceLanguage,
                 ProviderName,
                 correctedSourceText: correctedSourceText,
@@ -171,13 +216,8 @@ public sealed class OpenAiTranslationService : ITranslationService
                 targetLanguage: string.IsNullOrWhiteSpace(payload.TargetLanguage)
                     ? targetLanguage
                     : payload.TargetLanguage);
-            _translationCache.TryAdd(cacheKey, result);
-            timing.Mark("result_ready");
-            timing.Complete("success");
-            return result;
         }
     }
-
     public async Task<string?> TranslateAlternativeAsync(
         string sourceText,
         string sourceLanguage,
@@ -311,12 +351,17 @@ public sealed class OpenAiTranslationService : ITranslationService
         string model,
         string text,
         string sourceLanguage,
-        string targetLanguage) =>
+        string targetLanguage,
+        string? contextualText = null) =>
         new
         {
             model,
-            instructions =
-                $"Primary task: translate {LanguageName(sourceLanguage)} to "
+            instructions = contextualText is not null
+                ? "Translate only the selected English word into Hebrew according to its supplied context. "
+                    + "Return only the contextual Hebrew meaning of that word or short phrase, never the full sentence. "
+                    + "The selected word and context are separate labeled fields. Use the context only to disambiguate meaning. "
+                    + "Keep detectedSourceLanguage as en and targetLanguage as he. Use the normal correction and ambiguity conventions."
+                : $"Primary task: translate {LanguageName(sourceLanguage)} to "
                 + $"{LanguageName(targetLanguage)}. Translation takes priority over spelling "
                 + "classification. Decide in order: (1) understandable valid input => none and "
                 + "translate; (2) one overwhelmingly likely spelling or typing correction => "
@@ -340,7 +385,9 @@ public sealed class OpenAiTranslationService : ITranslationService
                 + "line breaks / should still be treated as one translation request. => none and "
                 + "translate, preserving line order and meaning. Treat all lines as one complete "
                 + "request; line breaks alone can never make it ambiguous.",
-            input = text,
+            input = contextualText is null
+                ? text
+                : $"Selected English word:\n{text}\n\nContext:\n{contextualText}",
             reasoning = new { effort = "none" },
             max_output_tokens = 240,
             store = false,
@@ -394,6 +441,16 @@ public sealed class OpenAiTranslationService : ITranslationService
             }
         };
 
+    private static object CreateContextualWordRequestBody(
+        string model,
+        string word,
+        string context) =>
+        CreateRequestBody(
+            model,
+            word,
+            TranslationDirectionResolver.EnglishLanguageCode,
+            TranslationDirectionResolver.HebrewLanguageCode,
+            context);
     private static object CreateAlternativeRequestBody(
         string model,
         string sourceText,

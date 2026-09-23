@@ -117,15 +117,34 @@ public sealed class TranslationSelectableTextContractTests
     }
 
     [Fact]
-    public void NoCustomClickCountOrManualSelectionHandlerWasIntroduced()
+    public void ContextualWordGestureIsLimitedToFeedSourceAndMainTranslation()
     {
-        var source = File.ReadAllText(FindSourcePath("Views", "TranslationToolView.xaml"));
-        var codeBehind = File.ReadAllText(FindSourcePath("Views", "TranslationToolView.xaml.cs"));
+        var view = XDocument.Load(FindSourcePath("Views", "TranslationToolView.xaml"));
+        var feed = view.Descendants(Presentation + "ItemsControl")
+            .Single(element => (string?)element.Attribute("ItemsSource") == "{Binding Items}");
+        var handled = feed.Descendants(Presentation + "TextBox")
+            .Where(element => element.Attribute("PreviewMouseDoubleClick") is not null)
+            .ToArray();
 
-        Assert.DoesNotContain("ClickCount", source);
-        Assert.DoesNotContain("ClickCount", codeBehind);
-        Assert.DoesNotContain("MouseMove", source);
-        Assert.DoesNotContain("MouseMove", codeBehind);
+        Assert.Equal(2, handled.Length);
+        Assert.Contains(handled, element =>
+            (string?)element.Attribute("Text") == "{Binding SourceText, Mode=OneWay}"
+            && (string?)element.Attribute("Tag") == "Source");
+        Assert.Contains(handled, element =>
+            (string?)element.Attribute("Text") == "{Binding MainTranslation, Mode=OneWay}"
+            && (string?)element.Attribute("Tag") == "Translation");
+        Assert.DoesNotContain(handled, element =>
+            (string?)element.Attribute("Text") == "{Binding CorrectedSourceDisplayText, Mode=OneWay}"
+            || (string?)element.Attribute("Text") == "{Binding Text, Mode=OneWay}");
+
+        var allHandled = view.Descendants(Presentation + "TextBox")
+            .Count(element => element.Attribute("PreviewMouseDoubleClick") is not null);
+        Assert.Equal(2, allHandled);
+
+        var codeBehind = File.ReadAllText(
+            FindSourcePath("Views", "TranslationToolView.xaml.cs"));
+        Assert.Contains("GetCharacterIndexFromPoint", codeBehind);
+        Assert.DoesNotContain("SelectedText", codeBehind);
     }
 
     private static string FindSourcePath(params string[] parts)
