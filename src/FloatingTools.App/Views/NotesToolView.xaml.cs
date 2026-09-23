@@ -18,6 +18,7 @@ namespace FloatingTools.App.Views;
 public partial class NotesToolView : UserControl
 {
     private ImageResizeSession? _imageResizeSession;
+    private bool _suppressEntryFocus;
 
     public FrameworkElement NotesContentSurfaceElement => NotesContentSurface;
 
@@ -27,6 +28,19 @@ public partial class NotesToolView : UserControl
     {
         InitializeComponent();
         IsVisibleChanged += OnIsVisibleChanged;
+    }
+
+    internal void RestoreAfterToolbarDrag(Action restorePanel)
+    {
+        _suppressEntryFocus = true;
+        try
+        {
+            restorePanel();
+        }
+        finally
+        {
+            _suppressEntryFocus = false;
+        }
     }
 
     public void FocusSearch()
@@ -730,7 +744,7 @@ public partial class NotesToolView : UserControl
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (e.NewValue is true)
+        if (e.NewValue is true && !_suppressEntryFocus)
         {
             FocusTextBlock((DataContext as NotesToolViewModel)?.ActiveBlocks
                 .OfType<TextNoteBlock>()

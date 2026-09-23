@@ -10,6 +10,7 @@ namespace FloatingTools.App.Views;
 
 public partial class PanelWindow : Window
 {
+    internal NotesToolView? ExistingNotesView => NotesTool.Content as NotesToolView;
     private readonly TranslationToolViewModel _translationToolViewModel;
     private readonly NotesToolViewModel _notesToolViewModel;
     private readonly QuickChatViewModel _quickChatViewModel;

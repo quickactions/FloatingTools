@@ -678,7 +678,15 @@ public sealed class WindowCoordinator
 
         if (shouldRestore)
         {
-            ShowPanel();
+            if (_viewModel.ActiveTool == ToolId.Notes
+                && PanelWindow.ExistingNotesView is { } notesView)
+            {
+                notesView.RestoreAfterToolbarDrag(ShowPanel);
+            }
+            else
+            {
+                ShowPanel();
+            }
         }
     }
 
