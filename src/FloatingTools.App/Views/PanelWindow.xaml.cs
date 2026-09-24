@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using FloatingTools.App.Models;
 using FloatingTools.App.Services;
@@ -10,6 +11,9 @@ namespace FloatingTools.App.Views;
 
 public partial class PanelWindow : Window
 {
+    private const int WmNcHitTest = 0x0084;
+    private static readonly IntPtr HtTransparent = new(-1);
+
     internal NotesToolView? ExistingNotesView => NotesTool.Content as NotesToolView;
     private readonly TranslationToolViewModel _translationToolViewModel;
     private readonly NotesToolViewModel _notesToolViewModel;
@@ -17,8 +21,12 @@ public partial class PanelWindow : Window
     private readonly CalendarToolViewModel _calendarToolViewModel;
     private readonly SettingsViewModel _applicationSettingsViewModel;
     private CornerRadius _activeContentCornerRadius;
+    private HwndSource? _windowSource;
 
     public event EventHandler? CloseRequested;
+
+    internal double EffectiveZoomPercentage { get; private set; } =
+        PanelZoomCalculator.DefaultPercentage;
 
     public PanelWindow(
         FloatingToolbarViewModel viewModel,
@@ -127,33 +135,111 @@ public partial class PanelWindow : Window
         }
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        _windowSource = PresentationSource.FromVisual(this) as HwndSource;
+        _windowSource?.AddHook(WindowMessageHook);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _windowSource?.RemoveHook(WindowMessageHook);
+        _windowSource = null;
+        base.OnClosed(e);
+    }
+
+    internal bool IsInsideVisiblePanel(Point windowPoint)
+    {
+        if (!VisiblePanelHost.IsVisible
+            || VisiblePanelHost.ActualWidth <= 0
+            || VisiblePanelHost.ActualHeight <= 0)
+        {
+            return false;
+        }
+
+        var origin = VisiblePanelHost.TranslatePoint(new Point(), this);
+        return new Rect(
+            origin,
+            new Size(
+                VisiblePanelHost.ActualWidth,
+                VisiblePanelHost.ActualHeight)).Contains(windowPoint);
+    }
+
+    private IntPtr WindowMessageHook(
+        IntPtr windowHandle,
+        int message,
+        IntPtr wParam,
+        IntPtr lParam,
+        ref bool handled)
+    {
+        if (message != WmNcHitTest)
+        {
+            return IntPtr.Zero;
+        }
+
+        var screenPoint = GetScreenPoint(lParam);
+        if (IsInsideVisiblePanel(PointFromScreen(screenPoint)))
+        {
+            return IntPtr.Zero;
+        }
+
+        handled = true;
+        return HtTransparent;
+    }
+    private static Point GetScreenPoint(IntPtr packedPoint)
+    {
+        var value = packedPoint.ToInt64();
+        return new Point(
+            unchecked((short)(value & 0xFFFF)),
+            unchecked((short)((value >> 16) & 0xFFFF)));
+    }
+
     internal static bool ToolSupportsSearch(ToolId tool) =>
         tool is ToolId.Translation or ToolId.Notes or ToolId.Calendar;
 
-    public void ApplyLayout(
+    public ToolSize PrepareVisibleLayout(
         PanelState panelState,
-        PanelSizePreset activeToolPanelSize,
-        double availableWidthDip,
-        double availableHeightDip,
-        DockSide dockSide)
+        PanelZoomLayout activeToolLayout,
+        DockSide dockSide,
+        double visibleTopOffsetDip)
     {
+        ToolSize visibleSize;
         if (panelState == PanelState.ToolMenu)
         {
-            Width = PanelSizeCalculator.ToolMenuWidth;
-            Height = PanelSizeCalculator.GetToolMenuHeight(
-                Enum.GetValues<ToolId>().Length);
+            visibleSize = new ToolSize(
+                PanelSizeCalculator.ToolMenuWidth,
+                PanelSizeCalculator.GetToolMenuHeight(
+                    Enum.GetValues<ToolId>().Length));
         }
         else
         {
-            var size = PanelSizeCalculator.GetActiveToolSize(
-                activeToolPanelSize,
-                availableWidthDip,
-                availableHeightDip);
-            Width = size.Width;
-            Height = size.Height;
+            visibleSize = activeToolLayout.WindowSize;
+            EffectiveZoomPercentage = activeToolLayout.EffectivePercentage;
+            var scale = activeToolLayout.EffectivePercentage / 100d;
+            ActiveToolScaleTransform.ScaleX = scale;
+            ActiveToolScaleTransform.ScaleY = scale;
         }
 
+        VisiblePanelHost.Width = visibleSize.Width;
+        VisiblePanelHost.Height = visibleSize.Height;
+        VisiblePanelHost.HorizontalAlignment = dockSide == DockSide.Left
+            ? HorizontalAlignment.Left
+            : HorizontalAlignment.Right;
+        VisiblePanelHost.Margin = new Thickness(
+            0,
+            Math.Max(0, visibleTopOffsetDip),
+            0,
+            0);
         ApplyCornerRadii(dockSide);
+        return visibleSize;
+    }
+
+    public void SetHostSize(ToolSize hostSize)
+    {
+        ArgumentNullException.ThrowIfNull(hostSize);
+        Width = hostSize.Width;
+        Height = hostSize.Height;
     }
 
     private void PanelSizeButton_OnClick(object sender, RoutedEventArgs e)

@@ -128,4 +128,66 @@ public sealed class PanelWindowPlacementCalculatorTests
         Assert.Equal(280, result.PanelPosition.Y);
         Assert.Equal(760, Monitor.WorkArea.Bottom - result.PanelPosition.Y);
     }
+
+    [Theory]
+    [InlineData(DockSide.Left, 0, 0)]
+    [InlineData(DockSide.Right, 1500, 180)]
+    public void CalculateHostPlacement_AnchorsVisiblePanelToPhysicalDockEdge(
+        DockSide dockSide,
+        int expectedHostLeft,
+        int expectedVisibleOffsetX)
+    {
+        var visible = PanelWindowPlacementCalculator.Calculate(
+            new PixelRect(1840, 100, 1920, 148),
+            panelWidthPixels: 240,
+            Monitor,
+            dockSide,
+            requiredPanelHeightPixels: 408);
+
+        var host = PanelWindowPlacementCalculator.CalculateHostPlacement(
+            visible,
+            visiblePanelWidthPixels: 240,
+            visiblePanelHeightPixels: 408,
+            hostWidthPixels: 420,
+            hostHeightPixels: 684,
+            Monitor,
+            dockSide);
+
+        Assert.Equal(expectedHostLeft, host.HostPosition.X);
+        Assert.Equal(148, host.HostPosition.Y);
+        Assert.Equal(expectedVisibleOffsetX, host.VisiblePanelOffset.X);
+        Assert.Equal(0, host.VisiblePanelOffset.Y);
+        Assert.Equal(
+            dockSide == DockSide.Left
+                ? Monitor.WorkArea.Left
+                : Monitor.WorkArea.Right,
+            host.HostPosition.X
+                + host.VisiblePanelOffset.X
+                + (dockSide == DockSide.Left ? 0 : 240));
+    }
+
+    [Fact]
+    public void CalculateHostPlacement_NearBottomKeepsHostFixedAndOffsetsVisiblePanel()
+    {
+        var visible = PanelWindowPlacementCalculator.Calculate(
+            new PixelRect(1840, 900, 1920, 948),
+            panelWidthPixels: 240,
+            Monitor,
+            DockSide.Right,
+            requiredPanelHeightPixels: 408);
+        var host = PanelWindowPlacementCalculator.CalculateHostPlacement(
+            visible,
+            visiblePanelWidthPixels: 240,
+            visiblePanelHeightPixels: 408,
+            hostWidthPixels: 420,
+            hostHeightPixels: 684,
+            Monitor,
+            DockSide.Right);
+
+        Assert.Equal(356, host.HostPosition.Y);
+        Assert.Equal(276, host.VisiblePanelOffset.Y);
+        Assert.Equal(
+            1040,
+            host.HostPosition.Y + host.VisiblePanelOffset.Y + 408);
+    }
 }

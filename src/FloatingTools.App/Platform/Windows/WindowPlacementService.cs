@@ -46,6 +46,81 @@ public sealed class WindowPlacementService
         }
     }
 
+    public static bool RequiresConnectedPlacement(
+        PixelRect toolbarBounds,
+        PixelPoint toolbarPosition,
+        PixelRect panelHostBounds,
+        PixelPoint panelHostPosition,
+        int panelHostWidth,
+        int panelHostHeight) =>
+        toolbarBounds.Left != toolbarPosition.X
+        || toolbarBounds.Top != toolbarPosition.Y
+        || panelHostBounds.Left != panelHostPosition.X
+        || panelHostBounds.Top != panelHostPosition.Y
+        || panelHostBounds.Width != panelHostWidth
+        || panelHostBounds.Height != panelHostHeight;
+
+    public void PlaceConnectedWindows(
+        IntPtr toolbarHandle,
+        PixelPoint toolbarPosition,
+        IntPtr panelHandle,
+        PixelPoint panelPosition,
+        int panelWidth,
+        int panelHeight)
+    {
+        if (toolbarHandle == IntPtr.Zero)
+        {
+            throw new ArgumentException("A toolbar window handle is required.", nameof(toolbarHandle));
+        }
+
+        if (panelHandle == IntPtr.Zero)
+        {
+            throw new ArgumentException("A panel window handle is required.", nameof(panelHandle));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(panelWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(panelHeight);
+
+        var deferred = BeginDeferWindowPos(2);
+        if (deferred == IntPtr.Zero)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        deferred = DeferWindowPos(
+            deferred,
+            toolbarHandle,
+            IntPtr.Zero,
+            toolbarPosition.X,
+            toolbarPosition.Y,
+            0,
+            0,
+            SwpNoSize | SwpNoZOrder | SwpNoActivate);
+        if (deferred == IntPtr.Zero)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        deferred = DeferWindowPos(
+            deferred,
+            panelHandle,
+            IntPtr.Zero,
+            panelPosition.X,
+            panelPosition.Y,
+            panelWidth,
+            panelHeight,
+            SwpNoZOrder | SwpNoActivate);
+        if (deferred == IntPtr.Zero)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        if (!EndDeferWindowPos(deferred))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+    }
+
     public WindowPlacement Restore(IntPtr windowHandle, WindowPlacement? requestedPlacement)
     {
         var bounds = GetWindowBounds(windowHandle);
@@ -211,6 +286,24 @@ public sealed class WindowPlacementService
         int width,
         int height,
         uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr BeginDeferWindowPos(int windowCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr DeferWindowPos(
+        IntPtr deferredPositionInfo,
+        IntPtr windowHandle,
+        IntPtr insertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EndDeferWindowPos(IntPtr deferredPositionInfo);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

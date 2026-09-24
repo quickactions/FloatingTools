@@ -25,6 +25,208 @@ namespace FloatingTools.Tests.Views;
 public sealed class PanelVisibilityRuntimeTests
 {
     [Theory]
+    [InlineData(80)]
+    [InlineData(100)]
+    [InlineData(140)]
+    public void ActiveToolZoom_ScalesContentLayoutWhileHeaderStaysUnscaled(
+        double percentage)
+        => WpfTestApplication.Run(() =>
+        {
+            var viewModel = new FloatingToolbarViewModel(
+                ToolId.Translation,
+                PanelSizePreset.Standard,
+                percentage);
+            viewModel.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(viewModel);
+            var expected = PanelZoomCalculator.CalculateLayout(
+                PanelSizePreset.Standard,
+                percentage,
+                2000,
+                2000);
+
+            var hostLayout = PanelZoomCalculator.CalculateLayout(
+                PanelSizePreset.Standard,
+                PanelZoomCalculator.GetMaximumPercentage(PanelSizePreset.Standard),
+                2000,
+                2000);
+            fixture.Window.SetHostSize(hostLayout.WindowSize);
+            fixture.Window.PrepareVisibleLayout(
+                PanelState.ActiveTool,
+                expected,
+                DockSide.Left,
+                visibleTopOffsetDip: 0);
+            fixture.Window.UpdateLayout();
+
+            var visiblePanel = (Grid)fixture.Window.FindName("VisiblePanelHost")!;
+            var content = (Grid)fixture.Window.FindName("ActiveToolContent")!;
+            var header = (FrameworkElement)fixture.Window.FindName("ActiveToolHeader")!;
+            var transform = Assert.IsType<System.Windows.Media.ScaleTransform>(
+                content.LayoutTransform);
+
+            Assert.InRange(
+                Math.Abs(hostLayout.WindowSize.Width - fixture.Window.Width),
+                0,
+                1);
+            Assert.InRange(
+                Math.Abs(hostLayout.WindowSize.Height - fixture.Window.Height),
+                0,
+                1);
+            Assert.Equal(expected.WindowSize.Width, visiblePanel.ActualWidth, 3);
+            Assert.Equal(expected.WindowSize.Height, visiblePanel.ActualHeight, 3);
+            Assert.InRange(
+                Math.Abs(expected.LogicalSize.Width - content.ActualWidth),
+                0,
+                1);
+            Assert.InRange(
+                Math.Abs(
+                    expected.LogicalSize.Height
+                    - PanelZoomCalculator.ActiveToolHeaderHeight
+                    - content.ActualHeight),
+                0,
+                1);
+            Assert.Equal(percentage / 100d, transform.ScaleX, 6);
+            Assert.Equal(percentage / 100d, transform.ScaleY, 6);
+            Assert.Equal(PanelZoomCalculator.ActiveToolHeaderHeight, header.ActualHeight, 3);
+        });
+
+    [Theory]
+    [InlineData(DockSide.Left)]
+    [InlineData(DockSide.Right)]
+    public void FixedHost_OrdinaryZoomKeepsNativeBoundsStable(DockSide dockSide)
+        => WpfTestApplication.Run(() =>
+        {
+            var viewModel = new FloatingToolbarViewModel(
+                ToolId.Translation,
+                PanelSizePreset.Standard,
+                panelZoomPercentage: 80);
+            viewModel.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(viewModel);
+            var fixedLayout = PanelZoomCalculator.CalculateFixedHostLayout(
+                PanelSizePreset.Standard,
+                80,
+                2000,
+                2000);
+            fixture.Window.SetHostSize(fixedLayout.HostLayout.WindowSize);
+            fixture.Window.PrepareVisibleLayout(
+                PanelState.ActiveTool,
+                fixedLayout.VisibleLayout,
+                dockSide,
+                visibleTopOffsetDip: 0);
+            fixture.Window.UpdateLayout();
+
+            var placement = new WindowPlacementService();
+            var handle = new WindowInteropHelper(fixture.Window).EnsureHandle();
+            var originalBounds = placement.GetWindowBounds(handle);
+            var visiblePanel = (Grid)fixture.Window.FindName("VisiblePanelHost")!;
+
+            for (var percentage = 80d; percentage <= 140; percentage += 10)
+            {
+                var layout = PanelZoomCalculator.CalculateFixedHostLayout(
+                    PanelSizePreset.Standard,
+                    percentage,
+                    2000,
+                    2000);
+                fixture.Window.PrepareVisibleLayout(
+                    PanelState.ActiveTool,
+                    layout.VisibleLayout,
+                    dockSide,
+                    visibleTopOffsetDip: 0);
+                fixture.Window.UpdateLayout();
+
+                Assert.Equal(originalBounds, placement.GetWindowBounds(handle));
+                Assert.Equal(
+                    layout.VisibleLayout.WindowSize.Width,
+                    visiblePanel.ActualWidth,
+                    3);
+                Assert.Equal(
+                    layout.VisibleLayout.WindowSize.Height,
+                    visiblePanel.ActualHeight,
+                    3);
+                Assert.Equal(
+                    dockSide == DockSide.Left
+                        ? HorizontalAlignment.Left
+                        : HorizontalAlignment.Right,
+                    visiblePanel.HorizontalAlignment);
+            }
+        });
+
+    [Fact]
+    public void FixedHost_UnusedTransparentAreaDoesNotParticipateInHitTesting()
+        => WpfTestApplication.Run(() =>
+        {
+            var viewModel = new FloatingToolbarViewModel(
+                ToolId.Translation,
+                PanelSizePreset.Standard,
+                panelZoomPercentage: 80);
+            viewModel.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(viewModel);
+            var layout = PanelZoomCalculator.CalculateFixedHostLayout(
+                PanelSizePreset.Standard,
+                80,
+                2000,
+                2000);
+            fixture.Window.SetHostSize(layout.HostLayout.WindowSize);
+            fixture.Window.PrepareVisibleLayout(
+                PanelState.ActiveTool,
+                layout.VisibleLayout,
+                DockSide.Right,
+                visibleTopOffsetDip: 100);
+            fixture.Window.UpdateLayout();
+
+            var hostRoot = (Grid)fixture.Window.FindName("PanelHostRoot")!;
+            var visiblePanel = (Grid)fixture.Window.FindName("VisiblePanelHost")!;
+            var visibleLeft = hostRoot.ActualWidth - visiblePanel.ActualWidth;
+
+            Assert.Null(hostRoot.Background);
+            Assert.Null(hostRoot.InputHitTest(new Point(10, 10)));
+            Assert.False(fixture.Window.IsInsideVisiblePanel(new Point(10, 10)));
+            Assert.True(fixture.Window.IsInsideVisiblePanel(new Point(
+                visibleLeft + 10,
+                visiblePanel.Margin.Top + 10)));
+            Assert.NotNull(hostRoot.InputHitTest(new Point(
+                visibleLeft + 10,
+                visiblePanel.Margin.Top + 10)));
+        });
+
+    [Fact]
+    public void ToolMenu_RemainsAtItsUnscaledGeometryAfterActiveToolZoom()
+        => WpfTestApplication.Run(() =>
+        {
+            var viewModel = new FloatingToolbarViewModel(
+                panelZoomPercentage: 140);
+            viewModel.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(viewModel);
+            var zoomLayout = PanelZoomCalculator.CalculateLayout(
+                PanelSizePreset.Standard,
+                140,
+                2000,
+                2000);
+
+            fixture.Window.PrepareVisibleLayout(
+                PanelState.ActiveTool,
+                zoomLayout,
+                DockSide.Left,
+                visibleTopOffsetDip: 0);
+            var menuSize = fixture.Window.PrepareVisibleLayout(
+                PanelState.ToolMenu,
+                zoomLayout,
+                DockSide.Left,
+                visibleTopOffsetDip: 0);
+            fixture.Window.SetHostSize(menuSize);
+
+            Assert.InRange(
+                Math.Abs(PanelSizeCalculator.ToolMenuWidth - fixture.Window.Width),
+                0,
+                1);
+            Assert.InRange(
+                Math.Abs(
+                    PanelSizeCalculator.GetToolMenuHeight(Enum.GetValues<ToolId>().Length)
+                    - fixture.Window.Height),
+                0,
+                1);
+        });
+
+    [Theory]
     [InlineData(ToolId.QuickChat)]
     [InlineData(ToolId.Calendar)]
     [InlineData(ToolId.Notes)]
@@ -225,6 +427,90 @@ public sealed class PanelVisibilityRuntimeTests
             Assert.Equal(Visibility.Visible, fixture.VisibilityOf(ToolId.Translation));
         });
 
+    [Theory]
+    [InlineData(DockSide.Left, PanelSizePreset.Standard, 140)]
+    [InlineData(DockSide.Right, PanelSizePreset.Standard, 140)]
+    [InlineData(DockSide.Left, PanelSizePreset.Large, 100)]
+    [InlineData(DockSide.Right, PanelSizePreset.Large, 100)]
+    public void Coordinator_OrdinaryZoomKeepsPresetHostBoundsAndFlushesPreference(
+        DockSide dockSide,
+        PanelSizePreset preset,
+        double maximum)
+        => WpfTestApplication.Run(() =>
+        {
+            var viewModel = new FloatingToolbarViewModel(
+                ToolId.Translation,
+                preset,
+                panelZoomPercentage: preset == PanelSizePreset.Standard ? 80 : 100,
+                largePanelZoomPercentage: preset == PanelSizePreset.Large ? 80 : 100);
+            viewModel.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(viewModel);
+            var path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                Guid.NewGuid() + ".json");
+            var placement = new WindowPlacementService();
+            var monitor = placement.GetMonitors()[0];
+            var settings = new AppSettings
+            {
+                ActiveToolPanelSize = preset,
+                WindowPlacement = new WindowPlacement(
+                    monitor.MonitorId,
+                    dockSide,
+                    100),
+                StandardPanelZoomPercentage =
+                    preset == PanelSizePreset.Standard ? 80 : 100,
+                LargePanelZoomPercentage =
+                    preset == PanelSizePreset.Large ? 80 : 100
+            };
+            var store = new SettingsService(path);
+            var toolbar = new ToolbarWindow(placement, store, settings);
+            using var hotkeys = new GlobalHotkeyService();
+            using var theme = new ThemeService(
+                AppAppearanceMode.Dark,
+                new AppAppearanceResolver(),
+                new WindowsThemeWatcher(),
+                new ResourceDictionary());
+            var coordinator = fixture.Coordinator(
+                toolbar,
+                viewModel,
+                placement,
+                store,
+                settings,
+                hotkeys,
+                theme);
+
+            try
+            {
+                coordinator.ShowToolbar();
+                coordinator.ShowPanel();
+                var panelHandle = new WindowInteropHelper(
+                    fixture.Window).EnsureHandle();
+                var originalHostBounds = placement.GetWindowBounds(panelHandle);
+
+                for (var percentage = 90d; percentage <= maximum; percentage += 10)
+                {
+                    viewModel.ZoomInCommand.Execute(null);
+                    Assert.Equal(percentage, viewModel.PanelZoomPercentage);
+                    Assert.Equal(
+                        originalHostBounds,
+                        placement.GetWindowBounds(panelHandle));
+                }
+
+                coordinator.CloseAll();
+                var persisted = store.Load();
+                Assert.Equal(
+                    preset == PanelSizePreset.Standard ? maximum : 100,
+                    persisted.StandardPanelZoomPercentage);
+                Assert.Equal(
+                    preset == PanelSizePreset.Large ? maximum : 100,
+                    persisted.LargePanelZoomPercentage);
+            }
+            finally
+            {
+                coordinator.CloseAll();
+                System.IO.File.Delete(path);
+            }
+        });
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

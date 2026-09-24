@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using FloatingTools.App.Models;
 using FloatingTools.App.Platform.Windows;
 using FloatingTools.App.ViewModels;
@@ -43,6 +44,7 @@ public sealed class WindowCoordinator
     private bool _exitRequested;
     private string? _pendingCaptureStatus;
     private bool _openTranslationAfterHiddenCapture;
+    private DispatcherOperation? _pendingSettingsSave;
     private bool IsStopping => _isClosing || _exitRequested;
 
     public WindowCoordinator(
@@ -197,6 +199,7 @@ public sealed class WindowCoordinator
         ToolbarWindow.StopUiRestoration();
         _screenTextCaptureService?.StopForShutdown();
         _panelDragSession.Cancel();
+        FlushPendingSettingsSave();
         Unsubscribe();
         CloseWindow(PanelWindow, "panel window close");
         CloseWindow(ToolbarWindow, "toolbar window close");
@@ -204,7 +207,14 @@ public sealed class WindowCoordinator
 
     private void AlignPanelToToolbar()
     {
-        if (!ToolbarWindow.CanUseNormalPlacement || _visibilitySession.IsHidden || IsStopping || _captureSuspended) return;
+        if (!ToolbarWindow.CanUseNormalPlacement
+            || _visibilitySession.IsHidden
+            || IsStopping
+            || _captureSuspended)
+        {
+            return;
+        }
+
         var toolbarHandle = new WindowInteropHelper(ToolbarWindow).Handle;
         var toolbarBounds = _placementService.GetWindowBounds(toolbarHandle);
         var monitors = _placementService.GetMonitors();
@@ -220,71 +230,142 @@ public sealed class WindowCoordinator
             : 1;
 
         var availableWidthDip = monitor.WorkArea.Width / scale;
-        var requestedWidthDip = _viewModel.PanelState == PanelState.ToolMenu
-            ? PanelSizeCalculator.ToolMenuWidth
-            : PanelSizeCalculator.GetRequestedActiveToolSize(
-                _viewModel.ActiveToolPanelSize).Width;
-        var maximumPanelHeightDip = Math.Max(
-            0,
-            (monitor.WorkArea.Height - toolbarBounds.Height) / scale);
-        var requiredPanelHeightPixels = _viewModel.PanelState is
-            PanelState.ActiveTool or PanelState.ApplicationSettings
-            ? Math.Min(
-                Math.Max(0, monitor.WorkArea.Height - toolbarBounds.Height),
-                Math.Max(
-                    0,
-                    (int)Math.Round(
-                        PanelSizeCalculator.GetRequiredActiveToolHeight(
-                            _viewModel.ActiveToolPanelSize,
-                            maximumPanelHeightDip) * scale)))
-            : 0;
-        var provisionalWidthPixels = Math.Max(
+        var maximumPanelHeightPixels = Math.Max(
             1,
-            (int)Math.Round(
-                Math.Min(requestedWidthDip, availableWidthDip) * scale));
-        var placement = PanelWindowPlacementCalculator.Calculate(
-            toolbarBounds,
-            provisionalWidthPixels,
-            monitor,
-            dockSide,
-            requiredPanelHeightPixels);
-        var availableHeightDip = Math.Max(
-            0,
-            (monitor.WorkArea.Bottom - placement.PanelPosition.Y) / scale);
-
-        PanelWindow.ApplyLayout(
-            _viewModel.PanelState,
+            monitor.WorkArea.Height - toolbarBounds.Height);
+        var maximumPanelHeightDip = maximumPanelHeightPixels / scale;
+        var fixedHostLayout = PanelZoomCalculator.CalculateFixedHostLayout(
             _viewModel.ActiveToolPanelSize,
+            _viewModel.PanelZoomPercentage,
             availableWidthDip,
-            availableHeightDip,
-            dockSide);
-        PanelWindow.UpdateLayout();
+            maximumPanelHeightDip);
+        var zoomLayout = fixedHostLayout.VisibleLayout;
 
-        var panelWidthPixels = Math.Max(
-            1,
-            (int)Math.Round(PanelWindow.Width * scale));
-        placement = PanelWindowPlacementCalculator.Calculate(
+        _viewModel.UpdateZoomContext(
+            zoomLayout.EffectivePercentage,
+            candidatePercentage =>
+            {
+                var candidate = PanelZoomCalculator.CalculateLayout(
+                    _viewModel.ActiveToolPanelSize,
+                    candidatePercentage,
+                    availableWidthDip,
+                    maximumPanelHeightDip);
+                return PanelZoomCalculator.ToPhysicalPixels(
+                           candidate.WindowSize.Width,
+                           scale)
+                       != PanelZoomCalculator.ToPhysicalPixels(
+                           zoomLayout.WindowSize.Width,
+                           scale)
+                    || PanelZoomCalculator.ToPhysicalPixels(
+                           candidate.WindowSize.Height,
+                           scale)
+                       != PanelZoomCalculator.ToPhysicalPixels(
+                           zoomLayout.WindowSize.Height,
+                           scale);
+            });
+        var toolMenuSize = new ToolSize(
+            PanelSizeCalculator.ToolMenuWidth,
+            PanelSizeCalculator.GetToolMenuHeight(Enum.GetValues<ToolId>().Length));
+        var visiblePanelSize = _viewModel.PanelState == PanelState.ToolMenu
+            ? toolMenuSize
+            : zoomLayout.WindowSize;
+        var hostSize = _viewModel.PanelState == PanelState.ToolMenu
+            ? toolMenuSize
+            : fixedHostLayout.HostLayout.WindowSize;
+        var visiblePanelWidthPixels = Math.Min(
+            monitor.WorkArea.Width,
+            PanelZoomCalculator.ToPhysicalPixels(visiblePanelSize.Width, scale));
+        var visiblePanelHeightPixels = Math.Min(
+            maximumPanelHeightPixels,
+            PanelZoomCalculator.ToPhysicalPixels(visiblePanelSize.Height, scale));
+        var hostWidthPixels = Math.Min(
+            monitor.WorkArea.Width,
+            PanelZoomCalculator.ToPhysicalPixels(hostSize.Width, scale));
+        var hostHeightPixels = Math.Min(
+            maximumPanelHeightPixels,
+            PanelZoomCalculator.ToPhysicalPixels(hostSize.Height, scale));
+
+        var visiblePlacement = PanelWindowPlacementCalculator.Calculate(
             toolbarBounds,
-            panelWidthPixels,
+            visiblePanelWidthPixels,
             monitor,
             dockSide,
-            requiredPanelHeightPixels);
+            visiblePanelHeightPixels);
+        var hostPlacement = PanelWindowPlacementCalculator.CalculateHostPlacement(
+            visiblePlacement,
+            visiblePanelWidthPixels,
+            visiblePanelHeightPixels,
+            hostWidthPixels,
+            hostHeightPixels,
+            monitor,
+            dockSide);
+        PanelWindow.PrepareVisibleLayout(
+            _viewModel.PanelState,
+            zoomLayout,
+            dockSide,
+            hostPlacement.VisiblePanelOffset.Y / scale);
 
-        _placementService.MoveWindow(
-            toolbarHandle,
-            placement.ToolbarPosition.X,
-            placement.ToolbarPosition.Y);
+        if (!PanelWindow.IsVisible)
+        {
+            PanelWindow.SetHostSize(hostSize);
+        }
 
         var panelHandle = new WindowInteropHelper(PanelWindow).EnsureHandle();
-        _placementService.MoveWindow(
-            panelHandle,
-            placement.PanelPosition.X,
-            placement.PanelPosition.Y);
+        var panelHostBounds = _placementService.GetWindowBounds(panelHandle);
+        if (WindowPlacementService.RequiresConnectedPlacement(
+                toolbarBounds,
+                visiblePlacement.ToolbarPosition,
+                panelHostBounds,
+                hostPlacement.HostPosition,
+                hostWidthPixels,
+                hostHeightPixels))
+        {
+            _placementService.PlaceConnectedWindows(
+                toolbarHandle,
+                visiblePlacement.ToolbarPosition,
+                panelHandle,
+                hostPlacement.HostPosition,
+                hostWidthPixels,
+                hostHeightPixels);
+        }
 
-        _settings.WindowPlacement = new WindowPlacement(
+        var persistedPlacement = new WindowPlacement(
             monitor.MonitorId,
             dockSide,
-            (placement.ToolbarPosition.Y - monitor.WorkArea.Top) / scale);
+            (visiblePlacement.ToolbarPosition.Y - monitor.WorkArea.Top) / scale);
+        if (_settings.WindowPlacement != persistedPlacement)
+        {
+            _settings.WindowPlacement = persistedPlacement;
+            ScheduleSettingsSave();
+        }
+    }
+
+    private void ScheduleSettingsSave()
+    {
+        if (_pendingSettingsSave?.Status == DispatcherOperationStatus.Pending)
+        {
+            return;
+        }
+
+        _pendingSettingsSave = ToolbarWindow.Dispatcher.BeginInvoke(
+            DispatcherPriority.ContextIdle,
+            new Action(() =>
+            {
+                _pendingSettingsSave = null;
+                _settingsService.Save(_settings);
+            }));
+    }
+
+    private void FlushPendingSettingsSave()
+    {
+        if (_pendingSettingsSave?.Status != DispatcherOperationStatus.Pending)
+        {
+            _pendingSettingsSave = null;
+            return;
+        }
+
+        _pendingSettingsSave.Abort();
+        _pendingSettingsSave = null;
         _settingsService.Save(_settings);
     }
 
@@ -725,11 +806,26 @@ public sealed class WindowCoordinator
             {
                 ShowPanel();
             }
-            else
+
+            ScheduleSettingsSave();
+            return;
+        }
+
+        if (e.PropertyName == nameof(FloatingToolbarViewModel.PanelZoomPercentage))
+        {
+            _settings.StandardPanelZoomPercentage =
+                _viewModel.StandardPanelZoomPercentage;
+            _settings.LargePanelZoomPercentage =
+                _viewModel.LargePanelZoomPercentage;
+
+            if (_viewModel.PanelState is
+                    PanelState.ActiveTool or PanelState.ApplicationSettings
+                && !_panelDragSession.IsDragActive)
             {
-                _settingsService.Save(_settings);
+                ShowPanel();
             }
 
+            ScheduleSettingsSave();
             return;
         }
 
@@ -786,6 +882,7 @@ public sealed class WindowCoordinator
             CloseWindow(PanelWindow, "panel window close");
         }
 
+        FlushPendingSettingsSave();
         Unsubscribe();
     }
 

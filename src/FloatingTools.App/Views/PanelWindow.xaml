@@ -15,6 +15,27 @@
         ShowActivated="True"
         SnapsToDevicePixels="True">
     <Window.InputBindings>
+        <KeyBinding Key="OemPlus"
+                    Modifiers="Control"
+                    Command="{Binding ZoomInCommand}" />
+        <KeyBinding Key="OemPlus"
+                    Modifiers="Control+Shift"
+                    Command="{Binding ZoomInCommand}" />
+        <KeyBinding Key="Add"
+                    Modifiers="Control"
+                    Command="{Binding ZoomInCommand}" />
+        <KeyBinding Key="OemMinus"
+                    Modifiers="Control"
+                    Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Key="Subtract"
+                    Modifiers="Control"
+                    Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Key="D0"
+                    Modifiers="Control"
+                    Command="{Binding ResetZoomCommand}" />
+        <KeyBinding Key="NumPad0"
+                    Modifiers="Control"
+                    Command="{Binding ResetZoomCommand}" />
         <KeyBinding Key="D1"
                     Modifiers="Control"
                     Command="{Binding SelectToolCommand}"
@@ -85,14 +106,17 @@
         </Style>
     </Window.Resources>
 
-    <Grid>
-        <Grid.Effect>
-            <DropShadowEffect BlurRadius="8"
-                              Color="#FF000000"
-                              Direction="270"
-                              Opacity="0.13"
-                              ShadowDepth="1" />
-        </Grid.Effect>
+    <Grid x:Name="PanelHostRoot">
+        <Grid x:Name="VisiblePanelHost"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top">
+            <Grid.Effect>
+                <DropShadowEffect BlurRadius="8"
+                                  Color="#FF000000"
+                                  Direction="270"
+                                  Opacity="0.13"
+                                  ShadowDepth="1" />
+            </Grid.Effect>
         <Border x:Name="ToolMenuPanel"
                 Background="{DynamicResource FloatingToolsBrushSurfaceInput}">
             <Border.Style>
@@ -284,6 +308,11 @@
                 <Grid x:Name="ActiveToolContent"
                       Grid.Row="1"
                       SizeChanged="ActiveToolContent_OnSizeChanged">
+                    <Grid.LayoutTransform>
+                        <ScaleTransform x:Name="ActiveToolScaleTransform"
+                                        ScaleX="1"
+                                        ScaleY="1" />
+                    </Grid.LayoutTransform>
                     <!-- Tool and settings surfaces are hosted, not instantiated.
                          Startup no longer builds five visual trees the user may
                          never open: PanelWindow materializes a host's content the
@@ -393,5 +422,6 @@
                 </Grid>
             </Grid>
         </Border>
+        </Grid>
     </Grid>
 </Window>

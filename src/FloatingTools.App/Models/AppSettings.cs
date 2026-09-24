@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using FloatingTools.App.Services;
+
 namespace FloatingTools.App.Models;
 
 public sealed class AppSettings
@@ -11,6 +14,13 @@ public sealed class AppSettings
     public ToolId LastUsedTool { get; set; } = ToolId.Translation;
 
     public PanelSizePreset ActiveToolPanelSize { get; set; } = PanelSizePreset.Standard;
+
+    public double? StandardPanelZoomPercentage { get; set; }
+
+    public double? LargePanelZoomPercentage { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PanelZoomPercentage { get; set; }
 
     public string TranslationModel { get; set; } = OpenAiModelOptions.DefaultModel;
 

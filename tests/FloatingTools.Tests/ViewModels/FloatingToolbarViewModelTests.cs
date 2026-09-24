@@ -1,4 +1,5 @@
 using FloatingTools.App.Models;
+using FloatingTools.App.Services;
 using FloatingTools.App.ViewModels;
 
 namespace FloatingTools.Tests.ViewModels;
@@ -176,6 +177,181 @@ public sealed class FloatingToolbarViewModelTests
         Assert.Equal(PanelSizePreset.Standard, viewModel.ActiveToolPanelSize);
     }
 
+    [Fact]
+    public void PanelZoom_DefaultsToOneHundredPercentForBothPresets()
+    {
+        var viewModel = new FloatingToolbarViewModel();
+
+        Assert.Equal(100, viewModel.StandardPanelZoomPercentage);
+        Assert.Equal(100, viewModel.LargePanelZoomPercentage);
+        Assert.Equal(100, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void StandardZoomCommands_UseTenPointStepsAndEightyToOneFortyLimits()
+    {
+        var viewModel = new FloatingToolbarViewModel();
+
+        for (var index = 0; index < 10; index++)
+        {
+            viewModel.ZoomInCommand.Execute(null);
+        }
+        Assert.Equal(140, viewModel.PanelZoomPercentage);
+
+        for (var index = 0; index < 10; index++)
+        {
+            viewModel.ZoomOutCommand.Execute(null);
+        }
+        Assert.Equal(80, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void LargeZoomCommands_UseTenPointStepsAndEightyToOneHundredLimits()
+    {
+        var viewModel = new FloatingToolbarViewModel(
+            activeToolPanelSize: PanelSizePreset.Large);
+
+        for (var index = 0; index < 10; index++)
+        {
+            viewModel.ZoomInCommand.Execute(null);
+        }
+        Assert.Equal(100, viewModel.PanelZoomPercentage);
+
+        viewModel.ZoomOutCommand.Execute(null);
+        Assert.Equal(90, viewModel.PanelZoomPercentage);
+        viewModel.ZoomOutCommand.Execute(null);
+        viewModel.ZoomOutCommand.Execute(null);
+        Assert.Equal(80, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void PresetSwitchesRestoreIndependentZoomPreferences()
+    {
+        var viewModel = new FloatingToolbarViewModel(
+            panelZoomPercentage: 130,
+            largePanelZoomPercentage: 90);
+
+        Assert.Equal(130, viewModel.PanelZoomPercentage);
+        viewModel.SelectPanelSizeCommand.Execute(PanelSizePreset.Large);
+        Assert.Equal(90, viewModel.PanelZoomPercentage);
+        viewModel.SelectPanelSizeCommand.Execute(PanelSizePreset.Standard);
+        Assert.Equal(130, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void RepeatedZoomInAtLargeMaximumDoesNotAccumulateHiddenSteps()
+    {
+        var viewModel = new FloatingToolbarViewModel(
+            activeToolPanelSize: PanelSizePreset.Large);
+
+        viewModel.ZoomInCommand.Execute(null);
+        viewModel.ZoomInCommand.Execute(null);
+        viewModel.ZoomOutCommand.Execute(null);
+
+        Assert.Equal(90, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void ZoomInThenOut_UsesCalculatedEffectivePercentageAtOneHundredTen()
+    {
+        var viewModel = new FloatingToolbarViewModel(panelZoomPercentage: 100);
+
+        viewModel.ZoomInCommand.Execute(null);
+        Assert.Equal(110, viewModel.PanelZoomPercentage);
+
+        var layout = PanelZoomCalculator.CalculateLayout(
+            PanelSizePreset.Standard,
+            viewModel.PanelZoomPercentage,
+            availableWidthDip: 2000,
+            availableHeightDip: 2000);
+        viewModel.UpdateZoomContext(layout.EffectivePercentage, _ => true);
+        viewModel.ZoomOutCommand.Execute(null);
+
+        Assert.Equal(100, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void FirstZoomOutFromMonitorCappedPreferenceChangesVisibleStep()
+    {
+        var viewModel = new FloatingToolbarViewModel(panelZoomPercentage: 140);
+        viewModel.UpdateZoomContext(113, _ => true);
+
+        viewModel.ZoomOutCommand.Execute(null);
+
+        Assert.Equal(110, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void MonitorCapDoesNotOverwriteSavedPreference()
+    {
+        var viewModel = new FloatingToolbarViewModel(panelZoomPercentage: 140);
+
+        viewModel.UpdateZoomContext(113, _ => true);
+
+        Assert.Equal(140, viewModel.StandardPanelZoomPercentage);
+        Assert.Equal(140, viewModel.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void InvisibleZoomCommandsDoNotChangePreference()
+    {
+        var viewModel = new FloatingToolbarViewModel(panelZoomPercentage: 100);
+        viewModel.UpdateZoomContext(100, _ => false);
+
+        viewModel.ZoomInCommand.Execute(null);
+        viewModel.ZoomOutCommand.Execute(null);
+        viewModel.ResetZoomCommand.Execute(null);
+
+        Assert.Equal(100, viewModel.PanelZoomPercentage);
+    }
+
+    [Theory]
+    [InlineData(PanelSizePreset.Standard, 130)]
+    [InlineData(PanelSizePreset.Large, 90)]
+    public void ResetZoom_ReturnsActivePresetToOneHundredPercent(
+        PanelSizePreset preset,
+        double initial)
+    {
+        var viewModel = new FloatingToolbarViewModel(
+            activeToolPanelSize: preset,
+            panelZoomPercentage: preset == PanelSizePreset.Standard ? initial : 100,
+            largePanelZoomPercentage: preset == PanelSizePreset.Large ? initial : 100);
+
+        viewModel.ResetZoomCommand.Execute(null);
+
+        Assert.Equal(100, viewModel.PanelZoomPercentage);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 100)]
+    [InlineData(double.PositiveInfinity, 100)]
+    [InlineData(10, 80)]
+    [InlineData(500, 140)]
+    [InlineData(114, 110)]
+    public void StandardZoom_ConstructorNormalizesInvalidValues(
+        double value,
+        double expected)
+    {
+        var viewModel = new FloatingToolbarViewModel(
+            panelZoomPercentage: value);
+
+        Assert.Equal(expected, viewModel.StandardPanelZoomPercentage);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 100)]
+    [InlineData(10, 80)]
+    [InlineData(500, 100)]
+    [InlineData(94, 90)]
+    public void LargeZoom_ConstructorNormalizesInvalidValues(
+        double value,
+        double expected)
+    {
+        var viewModel = new FloatingToolbarViewModel(
+            largePanelZoomPercentage: value);
+
+        Assert.Equal(expected, viewModel.LargePanelZoomPercentage);
+    }
     private static FloatingToolbarViewModel CreateViewModel(PanelState panelState)
     {
         var viewModel = new FloatingToolbarViewModel(ToolId.Translation)

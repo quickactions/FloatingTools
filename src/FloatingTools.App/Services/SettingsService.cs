@@ -88,6 +88,18 @@ public sealed class SettingsService : IAppSettingsStore
         settings.Appearance = Enum.IsDefined(settings.Appearance)
             ? settings.Appearance
             : AppAppearanceMode.System;
+        var legacyZoom = settings.PanelZoomPercentage;
+        settings.StandardPanelZoomPercentage = PanelZoomCalculator.NormalizePercentage(
+            PanelSizePreset.Standard,
+            settings.StandardPanelZoomPercentage
+                ?? legacyZoom
+                ?? PanelZoomCalculator.DefaultPercentage);
+        settings.LargePanelZoomPercentage = PanelZoomCalculator.NormalizePercentage(
+            PanelSizePreset.Large,
+            settings.LargePanelZoomPercentage
+                ?? legacyZoom
+                ?? PanelZoomCalculator.DefaultPercentage);
+        settings.PanelZoomPercentage = null;
         settings.Ai ??= new AiSettings();
         settings.Ai.DefaultProvider = string.IsNullOrWhiteSpace(settings.Ai.DefaultProvider)
             ? "OpenAI"

@@ -377,8 +377,11 @@ public sealed class QuickChatUiIntegrationContractTests
     {
         var panelCode = File.ReadAllText(
             FindSourcePath("Views", "PanelWindow.xaml.cs"));
+        var coordinatorCode = File.ReadAllText(
+            FindSourcePath("Services", "WindowCoordinator.cs"));
 
-        Assert.Contains("PanelSizeCalculator.GetActiveToolSize(", panelCode);
+        Assert.Contains("PanelWindow.PrepareVisibleLayout(", coordinatorCode);
+        Assert.Contains("PanelZoomCalculator.CalculateFixedHostLayout(", coordinatorCode);
         Assert.DoesNotContain("QuickChatWindow", panelCode);
         Assert.DoesNotContain("ToolId.QuickChat", panelCode);
     }

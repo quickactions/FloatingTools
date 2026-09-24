@@ -13,7 +13,10 @@ public sealed class PanelWindowKeyboardShortcutContractTests
     public void ToolSwitchKeyBindings_AreExactlyFourReusingSelectToolCommand()
     {
         var document = LoadView();
-        var keyBindings = document.Descendants(Presentation + "KeyBinding").ToArray();
+        var keyBindings = document.Descendants(Presentation + "KeyBinding")
+            .Where(binding =>
+                (string?)binding.Attribute("Command") == "{Binding SelectToolCommand}")
+            .ToArray();
 
         Assert.Equal(4, keyBindings.Length);
         Assert.All(keyBindings, binding =>
@@ -28,6 +31,60 @@ public sealed class PanelWindowKeyboardShortcutContractTests
         AssertBinding(keyBindings, "D2", "{x:Static models:ToolId.Notes}");
         AssertBinding(keyBindings, "D3", "{x:Static models:ToolId.QuickChat}");
         AssertBinding(keyBindings, "D4", "{x:Static models:ToolId.Calendar}");
+    }
+
+    [Fact]
+    public void ZoomKeyBindings_CoverOrdinaryAndNumericKeypadInputs()
+    {
+        var document = LoadView();
+        var bindings = document.Descendants(Presentation + "KeyBinding")
+            .Where(binding => ((string?)binding.Attribute("Command"))?.Contains(
+                "Zoom",
+                StringComparison.Ordinal) == true)
+            .Select(binding => (
+                Key: (string?)binding.Attribute("Key"),
+                Modifiers: (string?)binding.Attribute("Modifiers"),
+                Command: (string?)binding.Attribute("Command")))
+            .ToArray();
+
+        Assert.Contains(("OemPlus", "Control", "{Binding ZoomInCommand}"), bindings);
+        Assert.Contains(("OemPlus", "Control+Shift", "{Binding ZoomInCommand}"), bindings);
+        Assert.Contains(("Add", "Control", "{Binding ZoomInCommand}"), bindings);
+        Assert.Contains(("OemMinus", "Control", "{Binding ZoomOutCommand}"), bindings);
+        Assert.Contains(("Subtract", "Control", "{Binding ZoomOutCommand}"), bindings);
+        Assert.Contains(("D0", "Control", "{Binding ResetZoomCommand}"), bindings);
+        Assert.Contains(("NumPad0", "Control", "{Binding ResetZoomCommand}"), bindings);
+    }
+
+    [Fact]
+    public void Zoom_UsesKeyboardOnlyAndPreservesTransparentHitTesting()
+    {
+        var document = LoadView();
+        var window = document.Root!;
+        var nameAttribute = XName.Get(
+            "Name",
+            "http://schemas.microsoft.com/winfx/2006/xaml");
+        var hostRoot = document.Descendants()
+            .Single(element => (string?)element.Attribute(nameAttribute)
+                == "PanelHostRoot");
+        var visiblePanel = document.Descendants()
+            .Single(element => (string?)element.Attribute(nameAttribute)
+                == "VisiblePanelHost");
+        var content = document.Descendants()
+            .Single(element => (string?)element.Attribute(nameAttribute)
+                == "ActiveToolContent");
+        var code = File.ReadAllText(
+            FindSourcePath("Views", "PanelWindow.xaml.cs"));
+
+        Assert.Null((string?)window.Attribute("PreviewMouseWheel"));
+        Assert.Null((string?)hostRoot.Attribute("Background"));
+        Assert.Same(hostRoot, visiblePanel.Parent);
+        Assert.Single(content.Descendants(Presentation + "ScaleTransform"));
+        Assert.Empty(content.Ancestors(Presentation + "ScrollViewer"));
+        Assert.Contains("WmNcHitTest", code);
+        Assert.Contains("HtTransparent", code);
+        Assert.Contains("WindowMessageHook", code);
+        Assert.DoesNotContain("WmMouseWheel", code);
     }
 
     [Fact]

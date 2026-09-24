@@ -171,7 +171,11 @@ public partial class App : Application
 #endif
         var viewModel = new FloatingToolbarViewModel(
             settings.LastUsedTool,
-            settings.ActiveToolPanelSize);
+            settings.ActiveToolPanelSize,
+            settings.StandardPanelZoomPercentage
+                ?? PanelZoomCalculator.DefaultPercentage,
+            settings.LargePanelZoomPercentage
+                ?? PanelZoomCalculator.DefaultPercentage);
         var calendarToolViewModel = new CalendarToolViewModel(
             settings,
             settingsService,

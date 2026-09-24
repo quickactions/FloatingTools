@@ -40,4 +40,50 @@ public static class PanelWindowPlacementCalculator
             new PixelPoint(toolbarLeft, toolbarTop),
             new PixelPoint(panelLeft, toolbarTop + toolbarBounds.Height));
     }
+
+    public static PanelHostPlacement CalculateHostPlacement(
+        PanelWindowPlacement visiblePanelPlacement,
+        int visiblePanelWidthPixels,
+        int visiblePanelHeightPixels,
+        int hostWidthPixels,
+        int hostHeightPixels,
+        MonitorWorkArea monitor,
+        DockSide dockSide)
+    {
+        ArgumentNullException.ThrowIfNull(visiblePanelPlacement);
+        ArgumentNullException.ThrowIfNull(monitor);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(visiblePanelWidthPixels);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(visiblePanelHeightPixels);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hostWidthPixels);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hostHeightPixels);
+
+        if (hostWidthPixels < visiblePanelWidthPixels
+            || hostHeightPixels < visiblePanelHeightPixels)
+        {
+            throw new ArgumentException(
+                "The transparent host must contain the visible panel.");
+        }
+
+        var workArea = monitor.WorkArea;
+        var hostLeft = dockSide == DockSide.Left
+            ? workArea.Left
+            : Math.Max(workArea.Left, workArea.Right - hostWidthPixels);
+        var maximumHostTop = Math.Max(
+            workArea.Top,
+            workArea.Bottom - hostHeightPixels);
+        var hostTop = Math.Clamp(
+            visiblePanelPlacement.PanelPosition.Y,
+            workArea.Top,
+            maximumHostTop);
+
+        return new PanelHostPlacement(
+            new PixelPoint(hostLeft, hostTop),
+            new PixelPoint(
+                visiblePanelPlacement.PanelPosition.X - hostLeft,
+                visiblePanelPlacement.PanelPosition.Y - hostTop));
+    }
 }
+
+public sealed record PanelHostPlacement(
+    PixelPoint HostPosition,
+    PixelPoint VisiblePanelOffset);

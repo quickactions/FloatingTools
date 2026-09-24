@@ -20,6 +20,9 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Equal(AppSettings.CurrentSchemaVersion, result.SchemaVersion);
         Assert.Null(result.WindowPlacement);
         Assert.Equal(PanelSizePreset.Standard, result.ActiveToolPanelSize);
+        Assert.Equal(100, result.StandardPanelZoomPercentage);
+        Assert.Equal(100, result.LargePanelZoomPercentage);
+        Assert.Null(result.PanelZoomPercentage);
         Assert.Equal(OpenAiModelOptions.DefaultModel, result.TranslationModel);
         Assert.Equal(OpenAiModelOptions.DefaultModel, result.Ai.Translation.Model);
         Assert.Equal(ApplicationLanguageMode.System, result.ApplicationLanguage);
@@ -150,6 +153,120 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Equal(PanelSizePreset.Large, loaded.ActiveToolPanelSize);
     }
 
+    [Fact]
+    public void SaveAndLoad_RoundTripsIndependentPanelZoomPreferences()
+    {
+        var service = CreateService();
+        var settings = new AppSettings
+        {
+            StandardPanelZoomPercentage = 130,
+            LargePanelZoomPercentage = 90
+        };
+
+        Assert.True(service.Save(settings));
+
+        var loaded = service.Load();
+        Assert.Equal(130, loaded.StandardPanelZoomPercentage);
+        Assert.Equal(90, loaded.LargePanelZoomPercentage);
+        Assert.Null(loaded.PanelZoomPercentage);
+    }
+
+    [Fact]
+    public void ExistingSettingsWithoutAnyPanelZoom_DefaultBothToOneHundredPercent()
+    {
+        Directory.CreateDirectory(_testDirectory);
+        File.WriteAllText(
+            GetSettingsPath(),
+            """
+            {
+              "schemaVersion": 1,
+              "lastUsedTool": "Notes",
+              "activeToolPanelSize": "Large"
+            }
+            """);
+
+        var loaded = CreateService().Load();
+
+        Assert.Equal(100, loaded.StandardPanelZoomPercentage);
+        Assert.Equal(100, loaded.LargePanelZoomPercentage);
+        Assert.Equal(ToolId.Notes, loaded.LastUsedTool);
+        Assert.Equal(PanelSizePreset.Large, loaded.ActiveToolPanelSize);
+    }
+
+    [Theory]
+    [InlineData(10, 80, 80)]
+    [InlineData(500, 140, 100)]
+    [InlineData(116, 120, 100)]
+    public void Load_MigratesLegacyPanelZoomToPresetSpecificLimits(
+        double persisted,
+        double expectedStandard,
+        double expectedLarge)
+    {
+        Directory.CreateDirectory(_testDirectory);
+        File.WriteAllText(
+            GetSettingsPath(),
+            $$"""
+            {
+              "schemaVersion": 1,
+              "lastUsedTool": "Calendar",
+              "panelZoomPercentage": {{persisted}}
+            }
+            """);
+
+        var service = CreateService();
+        var loaded = service.Load();
+
+        Assert.Equal(expectedStandard, loaded.StandardPanelZoomPercentage);
+        Assert.Equal(expectedLarge, loaded.LargePanelZoomPercentage);
+        Assert.Null(loaded.PanelZoomPercentage);
+        Assert.Equal(ToolId.Calendar, loaded.LastUsedTool);
+
+        Assert.True(service.Save(loaded));
+        Assert.DoesNotContain("panelZoomPercentage", File.ReadAllText(GetSettingsPath()));
+    }
+
+    [Fact]
+    public void Load_PerPresetZoomValuesTakePrecedenceOverLegacyValue()
+    {
+        Directory.CreateDirectory(_testDirectory);
+        File.WriteAllText(
+            GetSettingsPath(),
+            """
+            {
+              "schemaVersion": 1,
+              "panelZoomPercentage": 140,
+              "standardPanelZoomPercentage": 110,
+              "largePanelZoomPercentage": 90
+            }
+            """);
+
+        var loaded = CreateService().Load();
+
+        Assert.Equal(110, loaded.StandardPanelZoomPercentage);
+        Assert.Equal(90, loaded.LargePanelZoomPercentage);
+        Assert.Null(loaded.PanelZoomPercentage);
+    }
+    [Fact]
+    public void Load_NormalizesInvalidPerPresetZoomValuesIndependently()
+    {
+        Directory.CreateDirectory(_testDirectory);
+        File.WriteAllText(
+            GetSettingsPath(),
+            """
+            {
+              "schemaVersion": 1,
+              "lastUsedTool": "Notes",
+              "standardPanelZoomPercentage": 500,
+              "largePanelZoomPercentage": 10
+            }
+            """);
+
+        var loaded = CreateService().Load();
+
+        Assert.Equal(140, loaded.StandardPanelZoomPercentage);
+        Assert.Equal(80, loaded.LargePanelZoomPercentage);
+        Assert.Equal(ToolId.Notes, loaded.LastUsedTool);
+    }
     [Fact]
     public void InvalidPanelSize_FallsBackWithoutLosingPlacement()
     {
