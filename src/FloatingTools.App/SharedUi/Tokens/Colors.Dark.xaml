@@ -12,6 +12,8 @@
     <Color x:Key="FloatingToolsColorSurfaceInput">#FF252527</Color>
     <Color x:Key="FloatingToolsColorSurfaceHeader">#FF303033</Color>
     <Color x:Key="FloatingToolsColorSurfaceSelected">#FF424246</Color>
+    <Color x:Key="FloatingToolsColorToolPanelSecondary">#FF242426</Color>
+    <Color x:Key="FloatingToolsColorToolPanelSelected">#FF29292B</Color>
     <Color x:Key="FloatingToolsColorForegroundPrimary">#FFF1F1F1</Color>
     <Color x:Key="FloatingToolsColorForegroundSecondary">#FFD4D4D7</Color>
     <Color x:Key="FloatingToolsColorForegroundMuted">#FFB8B8BD</Color>
@@ -58,6 +60,10 @@
                      Color="{StaticResource FloatingToolsColorSurfaceHeader}" />
     <SolidColorBrush x:Key="FloatingToolsBrushSurfaceSelected"
                      Color="{StaticResource FloatingToolsColorSurfaceSelected}" />
+    <SolidColorBrush x:Key="FloatingToolsBrushToolPanelSecondary"
+                     Color="{StaticResource FloatingToolsColorToolPanelSecondary}" />
+    <SolidColorBrush x:Key="FloatingToolsBrushToolPanelSelected"
+                     Color="{StaticResource FloatingToolsColorToolPanelSelected}" />
     <SolidColorBrush x:Key="FloatingToolsBrushForegroundPrimary"
                      Color="{StaticResource FloatingToolsColorForegroundPrimary}" />
     <SolidColorBrush x:Key="FloatingToolsBrushForegroundSecondary"

@@ -124,6 +124,7 @@ public sealed class WindowCoordinator
 
         ToolbarWindow.TranslationRequested += OnTranslationRequested;
         ToolbarWindow.ToolMenuRequested += OnToolMenuRequested;
+        ToolbarWindow.ToolSelected += OnToolSelected;
         ToolbarWindow.SettingsRequested += OnSettingsRequested;
         ToolbarWindow.ExitRequested += OnExitRequested;
         ToolbarWindow.DragStarted += OnToolbarDragStarted;
@@ -168,6 +169,17 @@ public sealed class WindowCoordinator
         ShowToolbar();
         if (!ToolbarWindow.CanUseNormalPlacement) return;
         EnsureOwnership();
+        if (_viewModel.PanelState == PanelState.ToolMenu)
+        {
+            // The tool panel uses the toolbar's connected buttons, while the
+            // existing ToolMenu state remains mutually exclusive with tools.
+            if (PanelWindow.IsVisible) PanelWindow.Hide();
+            ToolbarWindow.UpdatePanelConnection(isPanelConnected: false);
+            ToolbarWindow.SetToolPanelVisible(true);
+            return;
+        }
+
+        ToolbarWindow.SetToolPanelVisible(false);
         AlignPanelToToolbar();
         ToolbarWindow.UpdatePanelConnection(isPanelConnected: true);
 
@@ -180,6 +192,7 @@ public sealed class WindowCoordinator
     public void HidePanel()
     {
         _panelDragSession.PanelClosed();
+        ToolbarWindow.SetToolPanelVisible(false);
         ToolbarWindow.UpdatePanelConnection(isPanelConnected: false);
 
         if (PanelWindow.IsVisible)
@@ -353,7 +366,8 @@ public sealed class WindowCoordinator
                 : 0,
             TopOpeningDirection = topOpeningDirection
         };
-        if (_settings.WindowPlacement != persistedPlacement)
+        if (!ToolbarWindow.IsToolStripExpanded
+            && _settings.WindowPlacement != persistedPlacement)
         {
             _settings.WindowPlacement = persistedPlacement;
             ScheduleSettingsSave();
@@ -722,6 +736,12 @@ public sealed class WindowCoordinator
         _viewModel.ToggleToolMenuCommand.Execute(null);
     }
 
+    private void OnToolSelected(ToolId tool)
+    {
+        _viewModel.SelectToolCommand.Execute(tool);
+        ShowPanel();
+    }
+
     private async void OnSettingsRequested(object? sender, EventArgs e)
     {
         if (_isClosing)
@@ -779,7 +799,8 @@ public sealed class WindowCoordinator
 
         if (shouldRestore)
         {
-            if (_viewModel.ActiveTool == ToolId.Notes
+            if (_viewModel.PanelState == PanelState.ActiveTool
+                && _viewModel.ActiveTool == ToolId.Notes
                 && PanelWindow.ExistingNotesView is { } notesView)
             {
                 notesView.RestoreAfterToolbarDrag(ShowPanel);
@@ -910,6 +931,7 @@ public sealed class WindowCoordinator
     {
         ToolbarWindow.TranslationRequested -= OnTranslationRequested;
         ToolbarWindow.ToolMenuRequested -= OnToolMenuRequested;
+        ToolbarWindow.ToolSelected -= OnToolSelected;
         ToolbarWindow.SettingsRequested -= OnSettingsRequested;
         ToolbarWindow.ExitRequested -= OnExitRequested;
         ToolbarWindow.DragStarted -= OnToolbarDragStarted;

@@ -39,15 +39,16 @@ public sealed class ThemeColorDictionaryContractTests
         {
             var dark = LoadDictionary("Colors.Dark.xaml");
 
-            // 32 Color entries + 32 matching SolidColorBrush entries (one per
+            // 34 Color entries + 34 matching SolidColorBrush entries (one per
             // color) + 2 opacity constants. C2 added 6 new semantic pairs
             // (SurfaceHeader, SurfaceSelected, StatusError, BorderDivider,
             // OverlayHover, OverlayPressed) on top of C1's original 18; C3
             // added 7 more (SurfaceMessageUser, AccentToday, AccentHoliday,
             // AccentFavorite, StatusWarning, Scrim, SurfaceInsertionHighlight);
             // StatusSuccess was added for the Settings connection-test verdict,
-            // which needed a positive counterpart to StatusError.
-            Assert.Equal(66, dark.Count);
+            // which needed a positive counterpart to StatusError. The tool strip
+            // adds theme-aware solid secondary and selected-tile pairs.
+            Assert.Equal(70, dark.Count);
             Assert.True(dark.Contains("FloatingToolsColorStatusSuccess"));
             Assert.True(dark.Contains("FloatingToolsBrushStatusSuccess"));
             Assert.True(dark.Contains("FloatingToolsColorSurfaceBase"));
@@ -68,6 +69,8 @@ public sealed class ThemeColorDictionaryContractTests
             Assert.True(dark.Contains("FloatingToolsBrushBorderDivider"));
             Assert.True(dark.Contains("FloatingToolsBrushOverlayHover"));
             Assert.True(dark.Contains("FloatingToolsBrushOverlayPressed"));
+            Assert.True(dark.Contains("FloatingToolsBrushToolPanelSecondary"));
+            Assert.True(dark.Contains("FloatingToolsBrushToolPanelSelected"));
             Assert.True(dark.Contains("FloatingToolsOpacityDisabled"));
             Assert.True(dark.Contains("FloatingToolsOpacitySelection"));
         });

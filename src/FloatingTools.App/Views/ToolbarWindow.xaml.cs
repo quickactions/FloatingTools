@@ -47,6 +47,9 @@ public partial class ToolbarWindow : Window
     private bool _restoreRequestQueued;
     private bool _captureRestorePending;
     private bool _shutdownStarted;
+    private FloatingTools.App.ViewModels.FloatingToolbarViewModel? _observedViewModel;
+    private bool _isToolStripExpanded;
+    private PixelPoint? _collapsedPosition;
 
     internal int? DwmCornerPreferenceHResult { get; private set; }
 
@@ -152,6 +155,8 @@ public partial class ToolbarWindow : Window
 
     public event EventHandler? ToolMenuRequested;
 
+    public event Action<ToolId>? ToolSelected;
+
     public event EventHandler? SettingsRequested;
 
     public event EventHandler? ExitRequested;
@@ -159,6 +164,11 @@ public partial class ToolbarWindow : Window
     public event EventHandler? DragStarted;
 
     public event EventHandler? DragCompleted;
+
+    internal bool IsToolStripExpanded => _isToolStripExpanded;
+
+    internal void SetToolPanelVisible(bool visible) =>
+        SetToolStripExpanded(visible, notifyPlacement: false);
 
     public ToolbarWindow(
         WindowPlacementService placementService,
@@ -174,6 +184,7 @@ public partial class ToolbarWindow : Window
             ?? throw new ArgumentNullException(nameof(settingsService));
         _settings = settings
             ?? throw new ArgumentNullException(nameof(settings));
+        DataContextChanged += OnToolbarDataContextChanged;
 
         _transientStatusText = new TextBlock
         {
@@ -334,6 +345,8 @@ public partial class ToolbarWindow : Window
 
     private void BeginToolbarDrag()
     {
+        SetToolStripExpanded(false, notifyPlacement: false);
+        _windowAtDragStart = _placementService.GetWindowBounds(_windowHandle);
         _isDragging = true;
         DismissTransientStatus();
         DragStarted?.Invoke(this, EventArgs.Empty);
@@ -426,6 +439,71 @@ public partial class ToolbarWindow : Window
         ToolMenuRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    private void ToolTileButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ToolId tool }) return;
+        ToolSelected?.Invoke(tool);
+    }
+
+    private void SetToolStripExpanded(bool expanded, bool notifyPlacement = true)
+    {
+        if (_isToolStripExpanded == expanded) return;
+        var dockSide = _settings.WindowPlacement?.DockSide ?? DockSide.Right;
+        var opening = _settings.WindowPlacement?.TopOpeningDirection ?? TopOpeningDirection.Right;
+        var previousBounds = _windowHandle != IntPtr.Zero
+            ? _placementService.GetWindowBounds(_windowHandle) : default;
+        var previousLayout = ToolStripLayoutCalculator.Calculate(
+            dockSide, opening, _isToolStripExpanded, 4);
+        var currentLayout = ToolStripLayoutCalculator.Calculate(
+            dockSide, opening, expanded, 4);
+        MonitorWorkArea? monitor = null;
+        if (_windowHandle != IntPtr.Zero && CanUseNormalPlacement)
+        {
+            monitor = WindowPlacementCalculator.SelectMonitor(
+                previousBounds, _placementService.GetMonitors());
+            var scale = monitor.DpiScale > 0 ? monitor.DpiScale : 1;
+            if (expanded && (Math.Ceiling(currentLayout.Width * scale) > monitor.WorkArea.Width
+                || Math.Ceiling(currentLayout.Height * scale) > monitor.WorkArea.Height))
+            {
+                ShowTransientStatus("Not enough space to expand tools.");
+                return;
+            }
+        }
+        if (expanded && _windowHandle != IntPtr.Zero)
+            _collapsedPosition = new PixelPoint(previousBounds.Left, previousBounds.Top);
+
+        _isToolStripExpanded = expanded;
+        ApplyDockVisuals(_settings.WindowPlacement?.DockSide ?? DockSide.Right);
+        ToolsMenuButton.ToolTip = expanded ? "Close tools menu" : "Open tools menu";
+        System.Windows.Automation.AutomationProperties.SetName(
+            ToolsMenuButton, expanded ? "Close tools menu" : "Open tools menu");
+
+        if (_windowHandle != IntPtr.Zero && CanUseNormalPlacement)
+        {
+            monitor ??= WindowPlacementCalculator.SelectMonitor(
+                previousBounds, _placementService.GetMonitors());
+            var scale = monitor.DpiScale > 0 ? monitor.DpiScale : 1;
+            // WPF rounds fractional DPI pixels upward for the HWND bounds.
+            var width = (int)Math.Ceiling(currentLayout.Width * scale);
+            var height = (int)Math.Ceiling(currentLayout.Height * scale);
+            var left = !expanded && _collapsedPosition is { } original
+                ? original.X
+                : previousBounds.Left + (int)Math.Round(
+                    (previousLayout.MainCell.X - currentLayout.MainCell.X) * scale);
+            var top = !expanded && _collapsedPosition is { } originalTop
+                ? originalTop.Y : previousBounds.Top + (int)Math.Round(
+                    (previousLayout.MainCell.Y - currentLayout.MainCell.Y) * scale);
+            left = Math.Clamp(left, monitor.WorkArea.Left,
+                Math.Max(monitor.WorkArea.Left, monitor.WorkArea.Right - width));
+            top = Math.Clamp(top, monitor.WorkArea.Top,
+                Math.Max(monitor.WorkArea.Top, monitor.WorkArea.Bottom - height));
+            _placementService.MoveWindow(_windowHandle, left, top);
+            if (!expanded) _collapsedPosition = null;
+            if (notifyPlacement)
+                NormalPlacementReady?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     private void ApplyDockVisuals(DockSide dockSide)
     {
         var topDocked = dockSide == DockSide.Top;
@@ -438,42 +516,69 @@ public partial class ToolbarWindow : Window
         CubeShadowClip.ClipToBounds = topDocked;
         ShellRoot.Effect = topDocked ? null : _toolbarShadow;
         MainTileButton.Effect = topDocked ? _toolbarShadow : null;
-        Width = ShellRoot.Width = ToolbarBlock.Width = topDocked ? 48 : 80;
-        Height = ShellRoot.Height = ToolbarBlock.Height = topDocked ? 80 : 48;
-        Grid.SetRow(CubeShadowClip, 0);
-        Grid.SetRow(ToolsMenuButton, topDocked ? 1 : 0);
-        MainTileButton.Width = MainTileButton.Height = 48;
-        ToolsMenuButton.Width = topDocked ? 48 : 32;
-        ToolsMenuButton.Height = topDocked ? 32 : 48;
+        var layout = ToolStripLayoutCalculator.Calculate(dockSide,
+            _settings.WindowPlacement?.TopOpeningDirection ?? TopOpeningDirection.Right,
+            _isToolStripExpanded, 4);
+        Width = ShellRoot.Width = ToolbarBlock.Width = layout.Width;
+        Height = ShellRoot.Height = ToolbarBlock.Height = layout.Height;
+        PlaceStripElement(CubeShadowClip, layout.MainCell);
+        PlaceStripElement(ToolsMenuButton, layout.ChevronCell);
+        PlaceStripElement(ChevronHitSurface, layout.ChevronCell);
+        ToolsMenuButton.Width = ChevronHitSurface.Width = layout.ChevronCell.Width;
+        ToolsMenuButton.Height = ChevronHitSurface.Height = layout.ChevronCell.Height;
         ToolsMenuGlyph.Visibility = topDocked ? Visibility.Collapsed : Visibility.Visible;
         TopDockDots.Visibility = topDocked ? Visibility.Visible : Visibility.Collapsed;
-        TopDockDotsHitSurface.Visibility = topDocked ? Visibility.Visible : Visibility.Collapsed;
-
-        if (topDocked)
+        var buttons = new[] { TranslationTileButton, NotesTileButton,
+            QuickChatTileButton, CalendarTileButton };
+        foreach (var button in buttons)
         {
-            Grid.SetColumn(CubeShadowClip, 0);
-            Grid.SetColumn(ToolsMenuButton, 0);
-            SetButtonCornerRadius(MainTileButton, new CornerRadius(0, 0, 12, 12));
-            SetButtonCornerRadius(ToolsMenuButton, new CornerRadius(0));
-            return;
+            button.Visibility = _isToolStripExpanded ? Visibility.Visible : Visibility.Collapsed;
+            if (_isToolStripExpanded)
+            {
+                var toolCell = layout.ToolCells.Single(tool => tool.Tool == (ToolId)button.Tag);
+                PlaceStripElement(button, toolCell.Cell);
+                SetButtonCornerRadius(button, toolCell.Corners);
+            }
         }
+        SetButtonCornerRadius(MainTileButton, layout.MainCorners);
+        SetButtonCornerRadius(ToolsMenuButton,
+            _isPanelConnected ? new CornerRadius(0) : layout.ChevronCorners);
+        RefreshSelectedTiles();
+    }
 
-        var layout = DockedLayoutCalculator.Calculate(dockSide, panelWidth: 0);
-        Grid.SetColumn(CubeShadowClip, layout.ToolsButtonPrecedesCube ? 1 : 0);
-        Grid.SetColumn(ToolsMenuButton, layout.ToolsButtonPrecedesCube ? 0 : 1);
+    private static void PlaceStripElement(FrameworkElement element, ToolStripCell cell)
+    {
+        Canvas.SetLeft(element, cell.X);
+        Canvas.SetTop(element, cell.Y);
+    }
 
-        const double radius = 12;
-        var mainRadius = dockSide switch
-        {
-            DockSide.Right when _isPanelConnected => new CornerRadius(radius, 0, 0, 0),
-            DockSide.Right => new CornerRadius(radius, 0, 0, radius),
-            DockSide.Left when _isPanelConnected => new CornerRadius(0, radius, 0, 0),
-            DockSide.Left => new CornerRadius(0, radius, radius, 0),
-            _ => throw new ArgumentOutOfRangeException(nameof(dockSide))
-        };
+    private void RefreshSelectedTiles()
+    {
+        if (DataContext is not FloatingTools.App.ViewModels.FloatingToolbarViewModel viewModel) return;
+        foreach (var button in new[] { TranslationTileButton, NotesTileButton,
+                     QuickChatTileButton, CalendarTileButton })
+            button.SetResourceReference(Button.BackgroundProperty,
+                (ToolId)button.Tag == viewModel.ActiveTool
+                    ? "FloatingToolsBrushToolPanelSelected"
+                    : "FloatingToolsBrushToolPanelSecondary");
+    }
 
-        SetButtonCornerRadius(MainTileButton, mainRadius);
-        SetButtonCornerRadius(ToolsMenuButton, new CornerRadius(0));
+    private void OnToolbarDataContextChanged(object sender,
+        DependencyPropertyChangedEventArgs e)
+    {
+        if (_observedViewModel is not null)
+            _observedViewModel.PropertyChanged -= OnToolbarViewModelPropertyChanged;
+        _observedViewModel = e.NewValue as FloatingTools.App.ViewModels.FloatingToolbarViewModel;
+        if (_observedViewModel is not null)
+            _observedViewModel.PropertyChanged += OnToolbarViewModelPropertyChanged;
+        RefreshSelectedTiles();
+    }
+
+    private void OnToolbarViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(FloatingTools.App.ViewModels.FloatingToolbarViewModel.LastUsedTool)
+            or nameof(FloatingTools.App.ViewModels.FloatingToolbarViewModel.PanelState))
+            RefreshSelectedTiles();
     }
 
     private static void SetButtonCornerRadius(
@@ -500,6 +605,7 @@ public partial class ToolbarWindow : Window
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
     {
+        if (_isToolStripExpanded) SetToolStripExpanded(false, notifyPlacement: false);
         if (!CanUseNormalPlacement)
         {
             return;
@@ -515,6 +621,9 @@ public partial class ToolbarWindow : Window
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _closed = true;
+        if (_observedViewModel is not null)
+            _observedViewModel.PropertyChanged -= OnToolbarViewModelPropertyChanged;
+        DataContextChanged -= OnToolbarDataContextChanged;
         DismissTransientStatus();
         _source?.RemoveHook(OnWindowMessage);
         _source = null;
