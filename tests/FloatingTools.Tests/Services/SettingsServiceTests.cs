@@ -117,6 +117,24 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void SaveAndLoad_RoundTripsTopDockPlacementWithoutSchemaChange()
+    {
+        var service = CreateService();
+        var placement = new WindowPlacement("DISPLAY1", DockSide.Top, 0)
+        {
+            HorizontalOffset = 247.5,
+            TopOpeningDirection = TopOpeningDirection.Left
+        };
+        var settings = new AppSettings { WindowPlacement = placement };
+
+        Assert.True(service.Save(settings));
+        var loaded = service.Load();
+
+        Assert.Equal(AppSettings.CurrentSchemaVersion, loaded.SchemaVersion);
+        Assert.Equal(placement, loaded.WindowPlacement);
+    }
+
+    [Fact]
     public void SaveLastUsedTool_PreservesWindowPlacement()
     {
         var service = CreateService();

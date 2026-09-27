@@ -11,6 +11,12 @@ public static class DockedLayoutCalculator
         DockSide dockSide,
         double panelWidth)
     {
+        if (dockSide == DockSide.Top)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dockSide),
+                "Top docking uses the vertical toolbar arrangement.");
+        }
+
         var toolbarWidth = CubeSize + ToolsButtonWidth;
         var normalizedPanelWidth = double.IsFinite(panelWidth) && panelWidth > 0
             ? panelWidth

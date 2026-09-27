@@ -267,7 +267,11 @@
                 VerticalAlignment="Top"
                 Panel.ZIndex="100"
                 Visibility="{Binding IsAppMenuOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <StackPanel Margin="0,5">
+            <ScrollViewer x:Name="TranslationHeaderMenuScrollViewer"
+                          Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,5">
                 <Button Style="{StaticResource MenuItemButtonStyle}"
                         Command="{Binding OpenFeedCommand}"
                         ToolTip="Open translation feed">
@@ -324,10 +328,11 @@
                         <TextBlock Text="Settings" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-            </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
 
-        <Grid Grid.Row="1">
+        <Grid x:Name="TranslationFeedHost" Grid.Row="1">
             <ScrollViewer x:Name="FeedScrollViewer"
                           Style="{StaticResource DockAwareFeedScrollViewerStyle}"
                           VerticalScrollBarVisibility="Auto"
@@ -340,8 +345,7 @@
                         <DataTemplate>
                             <Border BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
                                     BorderThickness="0,0,0,1"
-                                    Padding="3,11,1,11"
-                                    sharedControls:BringIntoViewOnRevealBehavior.RevealVersion="{Binding RevealRequestVersion}">
+                                    Padding="3,11,1,11">
                                 <Grid FlowDirection="LeftToRight">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -405,31 +409,6 @@
                                              Visibility="{Binding IsAmbiguous, Converter={StaticResource BooleanToVisibilityConverter}}"
                                              AutomationProperties.Name="Ambiguous source message" />
 
-                                    <StackPanel Grid.Row="3" Grid.Column="0">
-                                        <ItemsControl ItemsSource="{Binding Alternatives}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBox Margin="0,4,7,0"
-                                                             Style="{StaticResource SelectableEntryTextStyle}"
-                                                             Text="{Binding Text, Mode=OneWay}"
-                                                             FlowDirection="{Binding FlowDirection}"
-                                                             TextAlignment="{Binding TextAlignment}"
-                                                             Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
-                                                             FontSize="12.5"
-                                                             AutomationProperties.Name="Alternative translation text" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-
-                                        <TextBlock Margin="0,4,7,0"
-                                                   Text="{Binding AlternativeMessage}"
-                                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
-                                                   FontSize="12"
-                                                   TextWrapping="Wrap"
-                                                   Visibility="{Binding HasAlternativeMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                   AutomationProperties.Name="Alternative translation status" />
-                                    </StackPanel>
-
                                     <Button Grid.Row="0"
                                             Grid.Column="1"
                                             Grid.RowSpan="3"
@@ -474,10 +453,37 @@
                                         </Grid>
                                     </Button>
 
-                                    <StackPanel Grid.Row="4"
+                                    <StackPanel x:Name="ExpandedEntryContent"
+                                                Grid.Row="3"
                                                 Grid.Column="0"
                                                 Grid.ColumnSpan="2"
-                                                Margin="0,10,0,0"
+                                                sharedControls:BringIntoViewOnRevealBehavior.RevealVersion="{Binding RevealRequestVersion}">
+                                        <StackPanel Margin="0,0,30,0">
+                                            <ItemsControl ItemsSource="{Binding Alternatives}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Margin="0,4,7,0"
+                                                             Style="{StaticResource SelectableEntryTextStyle}"
+                                                             Text="{Binding Text, Mode=OneWay}"
+                                                             FlowDirection="{Binding FlowDirection}"
+                                                             TextAlignment="{Binding TextAlignment}"
+                                                             Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                                             FontSize="12.5"
+                                                             AutomationProperties.Name="Alternative translation text" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Margin="0,4,7,0"
+                                                   Text="{Binding AlternativeMessage}"
+                                                   Foreground="{DynamicResource FloatingToolsBrushForegroundMuted}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="{Binding HasAlternativeMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                   AutomationProperties.Name="Alternative translation status" />
+                                        </StackPanel>
+
+                                    <StackPanel Margin="0,10,0,0"
                                                 Orientation="Horizontal"
                                                 Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <Button Style="{StaticResource ActionButtonStyle}"
@@ -534,6 +540,7 @@
                                                            VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -860,7 +867,8 @@
                                   HorizontalContentAlignment="Stretch">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
+                                <Border x:Name="SavedWordItemSurface"
+                                        BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
                                         BorderThickness="0,0,0,1"
                                         Padding="3,9,1,8">
                                     <Grid>
@@ -896,6 +904,13 @@
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsTopDocked, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                                        <Setter TargetName="SavedWordItemSurface"
+                                                Property="Style"
+                                                Value="{StaticResource TopDockCompactReadingWidthStyle}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -1044,7 +1059,8 @@
                                   HorizontalContentAlignment="Stretch">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
+                                <Border x:Name="FrequentWordItemSurface"
+                                        BorderBrush="{DynamicResource FloatingToolsBrushBorderDivider}"
                                         BorderThickness="0,0,0,1"
                                         Padding="3,8,1,7">
                                     <Grid FlowDirection="LeftToRight">
@@ -1084,6 +1100,13 @@
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsTopDocked, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                                        <Setter TargetName="FrequentWordItemSurface"
+                                                Property="Style"
+                                                Value="{StaticResource TopDockCompactReadingWidthStyle}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using FloatingTools.App.Services;
@@ -10,6 +11,41 @@ namespace FloatingTools.App.Views;
 
 public partial class TranslationToolView : UserControl
 {
+    public static readonly DependencyProperty IsTopDockedProperty =
+        DependencyProperty.Register(
+            nameof(IsTopDocked),
+            typeof(bool),
+            typeof(TranslationToolView),
+            new PropertyMetadata(false));
+
+    public bool IsTopDocked
+    {
+        get => (bool)GetValue(IsTopDockedProperty);
+        private set => SetValue(IsTopDockedProperty, value);
+    }
+
+    public void SetTopDocked(bool isTopDocked)
+    {
+        if (IsTopDocked == isTopDocked)
+        {
+            return;
+        }
+
+        IsTopDocked = isTopDocked;
+        if (isTopDocked)
+        {
+            BindingOperations.SetBinding(
+                TranslationHeaderExpandedContent,
+                MaxHeightProperty,
+                new Binding(nameof(ActualHeight)) { Source = TranslationFeedHost });
+        }
+        else
+        {
+            BindingOperations.ClearBinding(TranslationHeaderExpandedContent, MaxHeightProperty);
+            TranslationHeaderExpandedContent.MaxHeight = double.PositiveInfinity;
+        }
+    }
+
     private TranslationToolViewModel? _viewModel;
 
     public TranslationToolView()

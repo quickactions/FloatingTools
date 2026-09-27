@@ -14,6 +14,27 @@ namespace FloatingTools.App.Views;
 
 public partial class QuickChatToolView : UserControl
 {
+    public static readonly DependencyProperty IsTopDockedProperty =
+        DependencyProperty.Register(
+            nameof(IsTopDocked),
+            typeof(bool),
+            typeof(QuickChatToolView),
+            new PropertyMetadata(false));
+
+    public bool IsTopDocked
+    {
+        get => (bool)GetValue(IsTopDockedProperty);
+        private set => SetValue(IsTopDockedProperty, value);
+    }
+
+    public void SetTopDocked(bool isTopDocked)
+    {
+        if (IsTopDocked != isTopDocked)
+        {
+            IsTopDocked = isTopDocked;
+        }
+    }
+
     private QuickChatViewModel? _viewModel;
     private bool _followOutput = true;
     private Task? _initializationTask;

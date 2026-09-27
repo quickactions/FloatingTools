@@ -1,4 +1,6 @@
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using FloatingTools.App.SharedUi.Controls;
 
 namespace FloatingTools.Tests.SharedUi.Controls;
@@ -41,6 +43,47 @@ public sealed class BringIntoViewOnRevealBehaviorTests
             Assert.Null(exception);
         });
 
+    [Fact]
+    public void OversizedRevealTargetsTheBeginningOfTheSection()
+        => WpfTestApplication.Run(() =>
+        {
+            var section = new Border { Height = 300 };
+            var content = new StackPanel();
+            content.Children.Add(new Border { Height = 120 });
+            content.Children.Add(section);
+            var scroller = new ScrollViewer { Content = content };
+            var window = new Window
+            {
+                Content = scroller, Width = 220, Height = 120,
+                Left = -10000, Top = -10000, ShowInTaskbar = false,
+                ShowActivated = false, WindowStyle = WindowStyle.None
+            };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Rect? requested = null;
+                scroller.AddHandler(FrameworkElement.RequestBringIntoViewEvent,
+                    new RequestBringIntoViewEventHandler((_, e) =>
+                    {
+                        if (ReferenceEquals(e.TargetObject, section))
+                        {
+                            requested = e.TargetRect;
+                        }
+                    }), true);
+                BringIntoViewOnRevealBehavior.SetRevealVersion(section, 1);
+                Dispatcher.CurrentDispatcher.Invoke(
+                    DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.NotNull(requested);
+                Assert.InRange(requested.Value.Height, 1, scroller.ViewportHeight + 1);
+                Assert.True(section.ActualHeight > scroller.ViewportHeight);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     [Fact]
     public void DecreasingTheVersion_DoesNotThrowAndDoesNotScheduleWork()
         => WpfTestApplication.Run(() =>

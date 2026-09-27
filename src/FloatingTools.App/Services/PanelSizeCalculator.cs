@@ -8,6 +8,11 @@ public static class PanelSizeCalculator
     public const double StandardHeight = 500;
     public const double LargeWidth = 560;
     public const double LargeHeight = 760;
+    public const double TopStandardWidth = 460;
+    public const double TopStandardHeight = StandardWidth;
+    public const double TopLargeWidth = 720;
+    public const double TopLargeHeight = LargeWidth;
+    public const double TopPreferredMinimumWidth = 320;
     public const double MinimumActiveToolHeight = 320;
     public const double ToolMenuWidth = 220;
     public const double ToolMenuHeaderHeight = 42;
@@ -18,13 +23,14 @@ public static class PanelSizeCalculator
     public static ToolSize GetActiveToolSize(
         PanelSizePreset preset,
         double availableWidthDip,
-        double availableHeightDip)
+        double availableHeightDip,
+        DockSide dockSide = DockSide.Right)
     {
-        var requested = GetRequestedActiveToolSize(preset);
+        var requested = GetRequestedActiveToolSize(preset, dockSide);
         var availableWidth = NormalizeAvailable(availableWidthDip);
         var availableHeight = NormalizeAvailable(availableHeightDip);
         var height = Math.Min(requested.Height, availableHeight);
-        if (availableHeight >= MinimumActiveToolHeight)
+        if (dockSide != DockSide.Top && availableHeight >= MinimumActiveToolHeight)
         {
             height = Math.Max(MinimumActiveToolHeight, height);
         }
@@ -50,8 +56,16 @@ public static class PanelSizeCalculator
             availableHeight);
     }
 
-    public static ToolSize GetRequestedActiveToolSize(PanelSizePreset preset)
+    public static ToolSize GetRequestedActiveToolSize(
+        PanelSizePreset preset, DockSide dockSide = DockSide.Right)
     {
+        if (dockSide == DockSide.Top)
+        {
+            return preset == PanelSizePreset.Large
+                ? new ToolSize(TopLargeWidth, TopLargeHeight)
+                : new ToolSize(TopStandardWidth, TopStandardHeight);
+        }
+
         return preset == PanelSizePreset.Large
             ? new ToolSize(LargeWidth, LargeHeight)
             : new ToolSize(StandardWidth, StandardHeight);

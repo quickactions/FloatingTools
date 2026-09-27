@@ -98,7 +98,8 @@ public static class PanelZoomCalculator
         PanelSizePreset preset,
         double requestedPercentage,
         double availableWidthDip,
-        double availableHeightDip)
+        double availableHeightDip,
+        DockSide dockSide = DockSide.Right)
     {
         var normalizedPreset = PanelSizeCalculator.NormalizePreset(preset);
         var availableWidth = NormalizeAvailable(availableWidthDip);
@@ -106,7 +107,19 @@ public static class PanelZoomCalculator
         var baseline = PanelSizeCalculator.GetActiveToolSize(
             normalizedPreset,
             availableWidth,
-            availableHeight);
+            availableHeight,
+            dockSide);
+        if (dockSide == DockSide.Top)
+        {
+            // Keep one logical width and cap the effective scale on narrow monitors.
+            // This uses the available width before shrinking below the preferred
+            // 320-DIP visible panel width when that much space exists.
+            baseline = baseline with
+            {
+                Width = PanelSizeCalculator.GetRequestedActiveToolSize(
+                    normalizedPreset, dockSide).Width
+            };
+        }
         return CalculateLayout(
             normalizedPreset,
             baseline,
@@ -119,7 +132,8 @@ public static class PanelZoomCalculator
         PanelSizePreset preset,
         double requestedPercentage,
         double availableWidthDip,
-        double availableHeightDip)
+        double availableHeightDip,
+        DockSide dockSide = DockSide.Right)
     {
         var normalizedPreset = PanelSizeCalculator.NormalizePreset(preset);
         var availableWidth = NormalizeAvailable(availableWidthDip);
@@ -127,7 +141,19 @@ public static class PanelZoomCalculator
         var baseline = PanelSizeCalculator.GetActiveToolSize(
             normalizedPreset,
             availableWidth,
-            availableHeight);
+            availableHeight,
+            dockSide);
+        if (dockSide == DockSide.Top)
+        {
+            // Keep one logical width and cap the effective scale on narrow monitors.
+            // This uses the available width before shrinking below the preferred
+            // 320-DIP visible panel width when that much space exists.
+            baseline = baseline with
+            {
+                Width = PanelSizeCalculator.GetRequestedActiveToolSize(
+                    normalizedPreset, dockSide).Width
+            };
+        }
 
         return new PanelFixedHostZoomLayout(
             CalculateLayout(

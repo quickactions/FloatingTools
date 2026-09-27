@@ -206,7 +206,7 @@ public sealed class WindowChromeSharedStyleContractTests
 
         Assert.Contains("x:Name=\"ActiveToolContent\"", xaml);
         Assert.Contains("SizeChanged=\"ActiveToolContent_OnSizeChanged\"", xaml);
-        Assert.Contains("PanelChromeCornerRadiusCalculator.Calculate(dockSide)", code);
+        Assert.Contains("PanelChromeCornerRadiusCalculator.Calculate(dockSide, opening)", code);
         Assert.Contains("ActiveToolContent.Clip = geometry", code);
     }
 

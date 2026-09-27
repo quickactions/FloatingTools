@@ -21,6 +21,7 @@ public partial class PanelWindow : Window
     private readonly CalendarToolViewModel _calendarToolViewModel;
     private readonly SettingsViewModel _applicationSettingsViewModel;
     private CornerRadius _activeContentCornerRadius;
+    private DockSide _currentDockSide = DockSide.Right;
     private HwndSource? _windowSource;
 
     public event EventHandler? CloseRequested;
@@ -79,17 +80,42 @@ public partial class PanelWindow : Window
         host.Content = host.Name switch
         {
             nameof(TranslationTool) =>
-                new TranslationToolView { DataContext = _translationToolViewModel },
+                CreateTranslationView(),
             nameof(NotesTool) =>
                 new NotesToolView { DataContext = _notesToolViewModel },
             nameof(QuickChatTool) =>
-                new QuickChatToolView { DataContext = _quickChatViewModel },
+                CreateQuickChatView(),
             nameof(CalendarTool) =>
-                new CalendarToolView { DataContext = _calendarToolViewModel },
+                CreateCalendarView(),
             nameof(ApplicationSettings) =>
                 new ApplicationSettingsView { DataContext = _applicationSettingsViewModel },
             _ => host.Content
         };
+    }
+
+    private TranslationToolView CreateTranslationView()
+    {
+        var view = new TranslationToolView { DataContext = _translationToolViewModel };
+        view.SetTopDocked(_currentDockSide == DockSide.Top);
+        return view;
+    }
+
+    private QuickChatToolView CreateQuickChatView()
+    {
+        var view = new QuickChatToolView { DataContext = _quickChatViewModel };
+        view.SetTopDocked(_currentDockSide == DockSide.Top);
+        return view;
+    }
+
+    private CalendarToolView CreateCalendarView()
+    {
+        var view = new CalendarToolView { DataContext = _calendarToolViewModel };
+        if (DataContext is FloatingToolbarViewModel toolbarViewModel)
+        {
+            view.SetTopDocked(_currentDockSide == DockSide.Top,
+                toolbarViewModel.ActiveToolPanelSize);
+        }
+        return view;
     }
 
     private T GetOrCreateToolView<T>(ContentControl host)
@@ -202,12 +228,15 @@ public partial class PanelWindow : Window
         PanelState panelState,
         PanelZoomLayout activeToolLayout,
         DockSide dockSide,
-        double visibleTopOffsetDip)
+        double visibleTopOffsetDip,
+        TopOpeningDirection topOpeningDirection = TopOpeningDirection.Right,
+        ToolSize? toolMenuSize = null)
     {
+        _currentDockSide = dockSide;
         ToolSize visibleSize;
         if (panelState == PanelState.ToolMenu)
         {
-            visibleSize = new ToolSize(
+            visibleSize = toolMenuSize ?? new ToolSize(
                 PanelSizeCalculator.ToolMenuWidth,
                 PanelSizeCalculator.GetToolMenuHeight(
                     Enum.GetValues<ToolId>().Length));
@@ -221,9 +250,27 @@ public partial class PanelWindow : Window
             ActiveToolScaleTransform.ScaleY = scale;
         }
 
+        if (TranslationTool.Content is TranslationToolView translationView)
+        {
+            translationView.SetTopDocked(dockSide == DockSide.Top);
+        }
+
+        if (QuickChatTool.Content is QuickChatToolView quickChatView)
+        {
+            quickChatView.SetTopDocked(dockSide == DockSide.Top);
+        }
+
+        if (CalendarTool.Content is CalendarToolView calendarView
+            && DataContext is FloatingToolbarViewModel toolbarViewModel)
+        {
+            calendarView.SetTopDocked(dockSide == DockSide.Top,
+                toolbarViewModel.ActiveToolPanelSize);
+        }
+
         VisiblePanelHost.Width = visibleSize.Width;
         VisiblePanelHost.Height = visibleSize.Height;
         VisiblePanelHost.HorizontalAlignment = dockSide == DockSide.Left
+            || (dockSide == DockSide.Top && topOpeningDirection == TopOpeningDirection.Right)
             ? HorizontalAlignment.Left
             : HorizontalAlignment.Right;
         VisiblePanelHost.Margin = new Thickness(
@@ -231,7 +278,7 @@ public partial class PanelWindow : Window
             Math.Max(0, visibleTopOffsetDip),
             0,
             0);
-        ApplyCornerRadii(dockSide);
+        ApplyCornerRadii(dockSide, topOpeningDirection);
         return visibleSize;
     }
 
@@ -275,9 +322,9 @@ public partial class PanelWindow : Window
         }
     }
 
-    private void ApplyCornerRadii(DockSide dockSide)
+    private void ApplyCornerRadii(DockSide dockSide, TopOpeningDirection opening)
     {
-        var radii = PanelChromeCornerRadiusCalculator.Calculate(dockSide);
+        var radii = PanelChromeCornerRadiusCalculator.Calculate(dockSide, opening);
 
         ToolMenuPanel.CornerRadius = radii.Panel;
         ActiveToolPanel.CornerRadius = radii.Panel;

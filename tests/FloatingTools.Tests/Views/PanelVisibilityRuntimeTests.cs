@@ -188,6 +188,36 @@ public sealed class PanelVisibilityRuntimeTests
                 visiblePanel.Margin.Top + 10)));
         });
 
+    [Theory]
+    [InlineData(TopOpeningDirection.Right, HorizontalAlignment.Left)]
+    [InlineData(TopOpeningDirection.Left, HorizontalAlignment.Right)]
+    public void TopDock_VisiblePanelAlignmentAndTransparentArea(
+        TopOpeningDirection opening, HorizontalAlignment expectedAlignment)
+        => WpfTestApplication.Run(() =>
+        {
+            var viewModel = new FloatingToolbarViewModel(
+                ToolId.Translation, PanelSizePreset.Standard, panelZoomPercentage: 80);
+            viewModel.SelectToolCommand.Execute(ToolId.Translation);
+            using var fixture = PanelFixture.Create(viewModel);
+            var layout = PanelZoomCalculator.CalculateFixedHostLayout(
+                PanelSizePreset.Standard, 80, 2000, 2000, DockSide.Top);
+            fixture.Window.SetHostSize(layout.HostLayout.WindowSize);
+            fixture.Window.PrepareVisibleLayout(
+                PanelState.ActiveTool, layout.VisibleLayout, DockSide.Top, 0, opening);
+            fixture.Window.UpdateLayout();
+
+            var hostRoot = (Grid)fixture.Window.FindName("PanelHostRoot")!;
+            var visible = (Grid)fixture.Window.FindName("VisiblePanelHost")!;
+            Assert.Equal(expectedAlignment, visible.HorizontalAlignment);
+            Assert.Null(hostRoot.Background);
+            var transparentX = opening == TopOpeningDirection.Right
+                ? hostRoot.ActualWidth - 10 : 10;
+            var visibleX = opening == TopOpeningDirection.Right
+                ? 10 : hostRoot.ActualWidth - 10;
+            Assert.False(fixture.Window.IsInsideVisiblePanel(new Point(transparentX, 10)));
+            Assert.True(fixture.Window.IsInsideVisiblePanel(new Point(visibleX, 10)));
+        });
+
     [Fact]
     public void ToolMenu_RemainsAtItsUnscaledGeometryAfterActiveToolZoom()
         => WpfTestApplication.Run(() =>
@@ -432,6 +462,8 @@ public sealed class PanelVisibilityRuntimeTests
     [InlineData(DockSide.Right, PanelSizePreset.Standard, 140)]
     [InlineData(DockSide.Left, PanelSizePreset.Large, 100)]
     [InlineData(DockSide.Right, PanelSizePreset.Large, 100)]
+    [InlineData(DockSide.Top, PanelSizePreset.Standard, 140)]
+    [InlineData(DockSide.Top, PanelSizePreset.Large, 100)]
     public void Coordinator_OrdinaryZoomKeepsPresetHostBoundsAndFlushesPreference(
         DockSide dockSide,
         PanelSizePreset preset,

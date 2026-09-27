@@ -134,20 +134,17 @@ public sealed class WindowPlacementService
         return resolved.Placement;
     }
 
+    public WindowPlacement GetNearestDockPlacement(IntPtr windowHandle)
+    {
+        var bounds = GetWindowBounds(windowHandle);
+        return CalculateNearestDockPlacement(bounds, GetMonitors());
+    }
+
     public WindowPlacement DockToNearestSide(IntPtr windowHandle)
     {
         var bounds = GetWindowBounds(windowHandle);
         var monitors = GetMonitors();
-        var monitor = WindowPlacementCalculator.SelectMonitor(bounds, monitors);
-        var side = WindowPlacementCalculator.ChooseNearestDockSide(
-            bounds,
-            monitor.WorkArea);
-        var scale = monitor.DpiScale > 0 ? monitor.DpiScale : 1;
-        var requestedOffset = (bounds.Top - monitor.WorkArea.Top) / scale;
-        var requestedPlacement = new WindowPlacement(
-            monitor.MonitorId,
-            side,
-            requestedOffset);
+        var requestedPlacement = CalculateNearestDockPlacement(bounds, monitors);
         var resolved = WindowPlacementCalculator.Resolve(
             requestedPlacement,
             monitors,
@@ -156,6 +153,25 @@ public sealed class WindowPlacementService
 
         MoveWindow(windowHandle, resolved.Left, resolved.Top);
         return resolved.Placement;
+    }
+
+    private static WindowPlacement CalculateNearestDockPlacement(
+        PixelRect bounds,
+        IReadOnlyList<MonitorWorkArea> monitors)
+    {
+        var monitor = WindowPlacementCalculator.SelectMonitor(bounds, monitors);
+        var side = WindowPlacementCalculator.ChooseNearestDockSide(
+            bounds,
+            monitor.WorkArea);
+        var scale = monitor.DpiScale > 0 ? monitor.DpiScale : 1;
+        var requestedOffset = (bounds.Top - monitor.WorkArea.Top) / scale;
+        return new WindowPlacement(monitor.MonitorId, side, requestedOffset)
+        {
+            HorizontalOffset = (bounds.Left - monitor.WorkArea.Left) / scale,
+            TopOpeningDirection = side == DockSide.Top
+                ? WindowPlacementCalculator.ChooseTopOpeningDirection(bounds, monitor.WorkArea)
+                : TopOpeningDirection.Right
+        };
     }
 
     public IReadOnlyList<MonitorWorkArea> GetMonitors()

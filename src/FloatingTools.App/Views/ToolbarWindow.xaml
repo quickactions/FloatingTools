@@ -211,65 +211,83 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-            <Button x:Name="MainTileButton"
-                    Grid.Column="1"
-                    Width="48"
-                    Height="48"
-                    HorizontalAlignment="Left"
-                    ContextMenu="{StaticResource ToolbarContextMenu}"
-                    ToolTip="{Binding LastUsedToolName}"
-                    Click="MainTileButton_OnClick"
-                    PreviewMouseLeftButtonDown="MainTileButton_OnPreviewMouseLeftButtonDown"
-                    PreviewMouseMove="MainTileButton_OnPreviewMouseMove"
-                    PreviewMouseLeftButtonUp="MainTileButton_OnPreviewMouseLeftButtonUp"
-                    LostMouseCapture="MainTileButton_OnLostMouseCapture"
-                    AutomationProperties.Name="Last used tool">
-                <Button.Style>
-                    <Style TargetType="{x:Type Button}"
-                           BasedOn="{StaticResource ToolbarButtonStyle}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding PanelState}"
-                                         Value="{x:Static models:PanelState.ActiveTool}">
-                                <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceSelected}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <ContentControl>
-                    <ContentControl.Style>
-                        <Style TargetType="{x:Type ContentControl}">
-                            <Setter Property="ContentTemplate"
-                                    Value="{StaticResource TranslationIconTemplate}" />
+            <Grid x:Name="CubeShadowClip" Grid.Column="1" Width="48" Height="48" HorizontalAlignment="Left">
+                <Button x:Name="MainTileButton"
+                        Width="48"
+                        Height="48"
+                        HorizontalAlignment="Left"
+                        ContextMenu="{StaticResource ToolbarContextMenu}"
+                        ToolTip="{Binding LastUsedToolName}"
+                        Click="MainTileButton_OnClick"
+                        PreviewMouseLeftButtonDown="MainTileButton_OnPreviewMouseLeftButtonDown"
+                        PreviewMouseMove="MainTileButton_OnPreviewMouseMove"
+                        PreviewMouseLeftButtonUp="MainTileButton_OnPreviewMouseLeftButtonUp"
+                        LostMouseCapture="MainTileButton_OnLostMouseCapture"
+                        AutomationProperties.Name="Last used tool">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}"
+                               BasedOn="{StaticResource ToolbarButtonStyle}">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding LastUsedTool}"
-                                             Value="{x:Static models:ToolId.Notes}">
-                                    <Setter Property="ContentTemplate"
-                                            Value="{StaticResource NotesIconTemplate}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding LastUsedTool}"
-                                             Value="{x:Static models:ToolId.QuickChat}">
-                                    <Setter Property="ContentTemplate"
-                                            Value="{StaticResource QuickChatIconTemplate}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding LastUsedTool}"
-                                             Value="{x:Static models:ToolId.Calendar}">
-                                    <Setter Property="ContentTemplate"
-                                            Value="{StaticResource CalendarIconTemplate}" />
-                                </DataTrigger>
-                                <!-- Settings is a panel state rather than a tool,
-                                     so it must win over the LastUsedTool icon
-                                     above while the settings page is open. -->
                                 <DataTrigger Binding="{Binding PanelState}"
-                                             Value="{x:Static models:PanelState.ApplicationSettings}">
-                                    <Setter Property="ContentTemplate"
-                                            Value="{StaticResource ApplicationSettingsIconTemplate}" />
+                                             Value="{x:Static models:PanelState.ActiveTool}">
+                                    <Setter Property="Background" Value="{DynamicResource FloatingToolsBrushSurfaceSelected}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </ContentControl.Style>
-                </ContentControl>
-            </Button>
+                    </Button.Style>
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="{x:Type ContentControl}">
+                                <Setter Property="ContentTemplate"
+                                        Value="{StaticResource TranslationIconTemplate}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LastUsedTool}"
+                                                 Value="{x:Static models:ToolId.Notes}">
+                                        <Setter Property="ContentTemplate"
+                                                Value="{StaticResource NotesIconTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LastUsedTool}"
+                                                 Value="{x:Static models:ToolId.QuickChat}">
+                                        <Setter Property="ContentTemplate"
+                                                Value="{StaticResource QuickChatIconTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LastUsedTool}"
+                                                 Value="{x:Static models:ToolId.Calendar}">
+                                        <Setter Property="ContentTemplate"
+                                                Value="{StaticResource CalendarIconTemplate}" />
+                                    </DataTrigger>
+                                    <!-- Settings is a panel state rather than a tool,
+                                         so it must win over the LastUsedTool icon
+                                         above while the settings page is open. -->
+                                    <DataTrigger Binding="{Binding PanelState}"
+                                                 Value="{x:Static models:PanelState.ApplicationSettings}">
+                                        <Setter Property="ContentTemplate"
+                                                Value="{StaticResource ApplicationSettingsIconTemplate}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
+                </Button>
+            </Grid>
+
+            <!-- Non-interactive, one-alpha paint keeps the layered HWND mouse-active
+                 across the otherwise transparent Top Dock dots row. -->
+            <Border x:Name="TopDockDotsHitSurface"
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Width="48"
+                    Height="32"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Background="#01000000"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed" />
 
             <Button x:Name="ToolsMenuButton"
                     Grid.Column="0"
@@ -291,10 +309,25 @@
                         </Style.Triggers>
                     </Style>
                 </Button.Style>
-                <TextBlock Text="&#x22EE;"
-                           FontFamily="Segoe UI Symbol"
-                           FontSize="22"
-                           Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                <Grid>
+                    <TextBlock x:Name="ToolsMenuGlyph"
+                               Text="&#x22EE;"
+                               FontFamily="Segoe UI Symbol"
+                               FontSize="22"
+                               Foreground="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    <StackPanel x:Name="TopDockDots"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="Collapsed">
+                        <Ellipse Width="2.5" Height="2.5" Margin="0,0,4.25,0"
+                                 Fill="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                        <Ellipse Width="2.5" Height="2.5" Margin="0,0,4.25,0"
+                                 Fill="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                        <Ellipse Width="2.5" Height="2.5"
+                                 Fill="{DynamicResource FloatingToolsBrushForegroundPrimary}" />
+                    </StackPanel>
+                </Grid>
             </Button>
         </Grid>
     </Grid>

@@ -120,9 +120,18 @@ public sealed class CalendarStageTwoUiContractTests
             .Single(element => (string?)element.Attribute(X + "Name") == "CalendarBody");
         var scrolls = body.Descendants(Presentation + "ScrollViewer").ToArray();
 
-        Assert.Equal(4, scrolls.Length);
-        Assert.All(scrolls, scroll => Assert.Empty(
-            scroll.Ancestors(Presentation + "ScrollViewer")));
+        Assert.Equal(5, scrolls.Length);
+        var topScroller = scrolls.Single(scroll =>
+            (string?)scroll.Attribute(X + "Name") == "TopDockCalendarScrollViewer");
+        var dayScroller = scrolls.Single(scroll =>
+            (string?)scroll.Attribute(X + "Name") == "DayPanelScrollViewer");
+        Assert.Same(body, topScroller.Parent);
+        Assert.DoesNotContain(dayScroller.Ancestors(), ancestor => ReferenceEquals(ancestor, topScroller));
+        Assert.All(scrolls.Where(scroll => (string?)scroll.Attribute(X + "Name") is "MonthScrollViewer" or "WeekScrollViewer"),
+            scroll => Assert.Contains(scroll.Ancestors(), ancestor => ReferenceEquals(ancestor, topScroller)));
+        Assert.DoesNotContain(scrolls.Single(scroll =>
+            (string?)scroll.Attribute(X + "Name") == "ContextualEventsScrollViewer").Ancestors(),
+            ancestor => ReferenceEquals(ancestor, topScroller));
         Assert.Contains(body.Descendants(Presentation + "Border"),
             content => (string?)content.Attribute(X + "Name") == "DayPanelExpandedContent"
                 && content.ToString().Contains(

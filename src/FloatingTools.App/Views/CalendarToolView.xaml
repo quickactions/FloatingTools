@@ -410,10 +410,22 @@
         <Grid x:Name="CalendarBody" Grid.Row="1" Margin="8,4,8,8"
               Visibility="{Binding IsCalendarPage, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="38" />
-                <RowDefinition Height="25" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <ScrollViewer x:Name="TopDockCalendarScrollViewer"
+                          Grid.Row="0" Grid.RowSpan="2"
+                          Style="{StaticResource FloatingToolsSharedScrollViewerStyle}"
+                          controls:SmoothWheelScrollBehavior.IsEnabled="True"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Disabled"
+                          CanContentScroll="False">
+                <Grid x:Name="CalendarMainContent">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="38" />
+                        <RowDefinition Height="25" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
             <Grid Grid.Row="0">
                 <Grid.ColumnDefinitions>
@@ -668,8 +680,10 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+                </Grid>
+            </ScrollViewer>
 
-            <Grid x:Name="DayPanelOverlay" Grid.Row="2"
+            <Grid x:Name="DayPanelOverlay" Grid.Row="0" Grid.RowSpan="2"
                   VerticalAlignment="Bottom" Panel.ZIndex="10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="17" />
@@ -725,6 +739,7 @@
                     <MultiBinding Converter="{StaticResource CalendarDayPanelMinimumHeightConverter}">
                         <Binding Path="LayoutMode" />
                         <Binding Path="IsEventEditorOpen" />
+                        <Binding Path="IsTopStandardDocked" ElementName="CalendarRoot" />
                     </MultiBinding>
                 </Border.MinHeight>
                 <Grid>

@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using FloatingTools.App.Models;
 using FloatingTools.App.Platform.Windows;
@@ -14,6 +15,9 @@ namespace FloatingTools.App.Views;
 
 public partial class ToolbarWindow : Window
 {
+    private const int DwmWindowCornerPreference = 33;
+    private const int DwmCornerDefault = 0;
+    private const int DwmCornerDoNotRound = 1;
     private const int WmQueryOpen = 0x0013;
     private const int WmSysCommand = 0x0112;
     private const long SystemCommandMask = 0xFFF0;
@@ -21,6 +25,7 @@ public partial class ToolbarWindow : Window
     private const long ScRestore = 0xF120;
     private static readonly TimeSpan TransientStatusDuration = TimeSpan.FromSeconds(3);
     private readonly WindowPlacementService _placementService;
+    private readonly Effect _toolbarShadow;
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
     private readonly ToolTip _transientStatusToolTip;
@@ -43,6 +48,8 @@ public partial class ToolbarWindow : Window
     private bool _captureRestorePending;
     private bool _shutdownStarted;
 
+    internal int? DwmCornerPreferenceHResult { get; private set; }
+
     internal bool DeferRestoreForCapture { get; set; }
     internal event EventHandler? CaptureRestoreRequested;
 
@@ -64,6 +71,10 @@ public partial class ToolbarWindow : Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsIconic(IntPtr window);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr window, int attribute, ref int value, int valueSize);
 
     public void CompletePendingDrag() => CompleteDrag(releaseMouseCapture: true);
 
@@ -155,6 +166,7 @@ public partial class ToolbarWindow : Window
         AppSettings settings)
     {
         InitializeComponent();
+        _toolbarShadow = ShellRoot.Effect;
 
         _placementService = placementService
             ?? throw new ArgumentNullException(nameof(placementService));
@@ -180,6 +192,7 @@ public partial class ToolbarWindow : Window
             FrameworkElement.StyleProperty,
             "FloatingToolsSharedToolTipStyle");
 
+        ApplyDockVisuals(_settings.WindowPlacement?.DockSide ?? DockSide.Right);
         SourceInitialized += OnSourceInitialized;
         Closing += OnWindowClosing;
         Closed += OnWindowClosed;
@@ -204,9 +217,12 @@ public partial class ToolbarWindow : Window
         if (_closed || _shutdownStarted || string.IsNullOrWhiteSpace(message)) return;
 
         _transientStatusText.Text = message;
-        _transientStatusToolTip.Placement = _settings.WindowPlacement?.DockSide == DockSide.Right
-            ? PlacementMode.Left
-            : PlacementMode.Right;
+        _transientStatusToolTip.Placement = _settings.WindowPlacement?.DockSide switch
+        {
+            DockSide.Right => PlacementMode.Left,
+            DockSide.Top => PlacementMode.Bottom,
+            _ => PlacementMode.Right
+        };
         _transientStatusToolTip.IsOpen = true;
         _transientStatusTimer?.Stop();
         var generation = ++_transientStatusGeneration;
@@ -240,6 +256,14 @@ public partial class ToolbarWindow : Window
         _windowHandle = new WindowInteropHelper(this).Handle;
         _source = HwndSource.FromHwnd(_windowHandle);
         _source?.AddHook(OnWindowMessage);
+        if (_settings.WindowPlacement is { DockSide: DockSide.Top } savedTop
+            && !_placementService.GetMonitors().Any(monitor =>
+                string.Equals(monitor.MonitorId, savedTop.MonitorId,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            // Restore will choose the primary right edge. Use its native size first.
+            ApplyDockVisuals(DockSide.Right);
+        }
         _settings.WindowPlacement = _placementService.Restore(
             _windowHandle,
             _settings.WindowPlacement);
@@ -366,9 +390,7 @@ public partial class ToolbarWindow : Window
         try
         {
             if (!CanUseNormalPlacement) return;
-            _settings.WindowPlacement = _placementService.DockToNearestSide(_windowHandle);
-            ApplyDockVisuals(_settings.WindowPlacement.DockSide);
-            _settingsService.Save(_settings);
+            SnapToNearestDock();
         }
         catch (Exception exception) when (
             exception is Win32Exception or InvalidOperationException)
@@ -380,6 +402,18 @@ public partial class ToolbarWindow : Window
         {
             DragCompleted?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    internal WindowPlacement SnapToNearestDock()
+    {
+        var nearest = _placementService.GetNearestDockPlacement(_windowHandle);
+        _settings.WindowPlacement = nearest;
+        ApplyDockVisuals(nearest.DockSide);
+        // The destination Width/Height must reach the HWND before Resolve
+        // positions it against the work-area edge.
+        _settings.WindowPlacement = _placementService.Restore(_windowHandle, nearest);
+        _settingsService.Save(_settings);
+        return _settings.WindowPlacement;
     }
 
     private void MainTileButton_OnClick(object sender, RoutedEventArgs e)
@@ -394,8 +428,38 @@ public partial class ToolbarWindow : Window
 
     private void ApplyDockVisuals(DockSide dockSide)
     {
+        var topDocked = dockSide == DockSide.Top;
+        if (_windowHandle != IntPtr.Zero)
+        {
+            var preference = topDocked ? DwmCornerDoNotRound : DwmCornerDefault;
+            DwmCornerPreferenceHResult = DwmSetWindowAttribute(
+                _windowHandle, DwmWindowCornerPreference, ref preference, sizeof(int));
+        }
+        CubeShadowClip.ClipToBounds = topDocked;
+        ShellRoot.Effect = topDocked ? null : _toolbarShadow;
+        MainTileButton.Effect = topDocked ? _toolbarShadow : null;
+        Width = ShellRoot.Width = ToolbarBlock.Width = topDocked ? 48 : 80;
+        Height = ShellRoot.Height = ToolbarBlock.Height = topDocked ? 80 : 48;
+        Grid.SetRow(CubeShadowClip, 0);
+        Grid.SetRow(ToolsMenuButton, topDocked ? 1 : 0);
+        MainTileButton.Width = MainTileButton.Height = 48;
+        ToolsMenuButton.Width = topDocked ? 48 : 32;
+        ToolsMenuButton.Height = topDocked ? 32 : 48;
+        ToolsMenuGlyph.Visibility = topDocked ? Visibility.Collapsed : Visibility.Visible;
+        TopDockDots.Visibility = topDocked ? Visibility.Visible : Visibility.Collapsed;
+        TopDockDotsHitSurface.Visibility = topDocked ? Visibility.Visible : Visibility.Collapsed;
+
+        if (topDocked)
+        {
+            Grid.SetColumn(CubeShadowClip, 0);
+            Grid.SetColumn(ToolsMenuButton, 0);
+            SetButtonCornerRadius(MainTileButton, new CornerRadius(0, 0, 12, 12));
+            SetButtonCornerRadius(ToolsMenuButton, new CornerRadius(0));
+            return;
+        }
+
         var layout = DockedLayoutCalculator.Calculate(dockSide, panelWidth: 0);
-        Grid.SetColumn(MainTileButton, layout.ToolsButtonPrecedesCube ? 1 : 0);
+        Grid.SetColumn(CubeShadowClip, layout.ToolsButtonPrecedesCube ? 1 : 0);
         Grid.SetColumn(ToolsMenuButton, layout.ToolsButtonPrecedesCube ? 0 : 1);
 
         const double radius = 12;
@@ -404,7 +468,8 @@ public partial class ToolbarWindow : Window
             DockSide.Right when _isPanelConnected => new CornerRadius(radius, 0, 0, 0),
             DockSide.Right => new CornerRadius(radius, 0, 0, radius),
             DockSide.Left when _isPanelConnected => new CornerRadius(0, radius, 0, 0),
-            _ => new CornerRadius(0, radius, radius, 0)
+            DockSide.Left => new CornerRadius(0, radius, radius, 0),
+            _ => throw new ArgumentOutOfRangeException(nameof(dockSide))
         };
 
         SetButtonCornerRadius(MainTileButton, mainRadius);
@@ -440,7 +505,10 @@ public partial class ToolbarWindow : Window
             return;
         }
 
-        _settings.WindowPlacement = _placementService.DockToNearestSide(_windowHandle);
+        if (_settings.WindowPlacement?.DockSide != DockSide.Top)
+        {
+            _settings.WindowPlacement = _placementService.DockToNearestSide(_windowHandle);
+        }
         _settingsService.Save(_settings);
     }
 

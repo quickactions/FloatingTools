@@ -33,12 +33,19 @@ public sealed class TranslationFeedAutoScrollContractTests
             .Elements(Presentation + "Border")
             .Single();
 
-        var revealVersionAttribute = entryBorder.Attributes()
-            .SingleOrDefault(attribute =>
+        var expandedSection = entryBorder.Descendants(Presentation + "StackPanel")
+            .Single(element => (string?)element.Attribute(X + "Name") == "ExpandedEntryContent");
+        var revealVersionAttribute = expandedSection.Attributes()
+            .Single(attribute =>
                 attribute.Name.LocalName == "BringIntoViewOnRevealBehavior.RevealVersion");
 
-        Assert.NotNull(revealVersionAttribute);
-        Assert.Equal("{Binding RevealRequestVersion}", revealVersionAttribute!.Value);
+        Assert.DoesNotContain(entryBorder.Attributes(), attribute =>
+            attribute.Name.LocalName == "BringIntoViewOnRevealBehavior.RevealVersion");
+        Assert.Equal("{Binding RevealRequestVersion}", revealVersionAttribute.Value);
+        Assert.Contains(expandedSection.Descendants(Presentation + "ItemsControl"),
+            element => (string?)element.Attribute("ItemsSource") == "{Binding Alternatives}");
+        Assert.Contains(expandedSection.Descendants(Presentation + "Button"),
+            element => (string?)element.Attribute("Command") == "{Binding RequestAlternativeCommand}");
     }
 
     [Fact]

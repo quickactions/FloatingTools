@@ -8,7 +8,20 @@ public static class WindowPlacementCalculator
     {
         var distanceFromLeft = Math.Abs((long)window.Left - workArea.Left);
         var distanceFromRight = Math.Abs((long)workArea.Right - window.Right);
+        var distanceFromTop = Math.Abs((long)window.Top - workArea.Top);
+        if (distanceFromTop < Math.Min(distanceFromLeft, distanceFromRight)) return DockSide.Top;
         return distanceFromLeft <= distanceFromRight ? DockSide.Left : DockSide.Right;
+    }
+
+    public static TopOpeningDirection ChooseTopOpeningDirection(PixelRect window, PixelRect workArea) =>
+        window.Left + window.Width / 2.0 >= workArea.Left + workArea.Width / 2.0
+            ? TopOpeningDirection.Right : TopOpeningDirection.Left;
+
+    public static double ClampHorizontalOffset(double offsetDip, int windowWidthPixels, MonitorWorkArea monitor)
+    {
+        var scale = NormalizeScale(monitor.DpiScale);
+        var maximum = Math.Max(0, (monitor.WorkArea.Width - windowWidthPixels) / scale);
+        return Math.Clamp(double.IsFinite(offsetDip) ? offsetDip : 0, 0, maximum);
     }
 
     public static double ClampVerticalOffset(
@@ -89,6 +102,20 @@ public static class WindowPlacementCalculator
             ? defaultOffset
             : requestedPlacement!.VerticalOffset;
         var offset = ClampVerticalOffset(requestedOffset, windowHeightPixels, monitor);
+
+        if (dockSide == DockSide.Top)
+        {
+            var horizontalOffset = ClampHorizontalOffset(
+                requestedPlacement!.HorizontalOffset, windowWidthPixels, monitor);
+            var topLeft = monitor.WorkArea.Left + (int)Math.Round(
+                horizontalOffset * scale, MidpointRounding.AwayFromZero);
+            var topPlacement = new WindowPlacement(monitor.MonitorId, dockSide, 0)
+            {
+                HorizontalOffset = horizontalOffset,
+                TopOpeningDirection = requestedPlacement.TopOpeningDirection
+            };
+            return new ResolvedWindowPlacement(topPlacement, topLeft, monitor.WorkArea.Top);
+        }
 
         var left = dockSide == DockSide.Left
             ? monitor.WorkArea.Left

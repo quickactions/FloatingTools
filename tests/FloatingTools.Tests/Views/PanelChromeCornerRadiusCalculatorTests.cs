@@ -15,6 +15,22 @@ public sealed class PanelChromeCornerRadiusCalculatorTests
         Assert.Equal(new System.Windows.CornerRadius(0, 0, 0, 12), radii.ActiveContent);
     }
 
+    [Theory]
+    [InlineData(TopOpeningDirection.Right, 0, 12)]
+    [InlineData(TopOpeningDirection.Left, 12, 0)]
+    public void Calculate_DockTop_ConnectsTheUpperCornerBesideCube(
+        TopOpeningDirection opening, double topLeft, double topRight)
+    {
+        var radii = PanelChromeCornerRadiusCalculator.Calculate(DockSide.Top, opening);
+
+        Assert.Equal(topLeft, radii.Panel.TopLeft);
+        Assert.Equal(topRight, radii.Panel.TopRight);
+        Assert.Equal(12, radii.Panel.BottomLeft);
+        Assert.Equal(12, radii.Panel.BottomRight);
+        Assert.Equal(topLeft, radii.Header.TopLeft);
+        Assert.Equal(topRight, radii.Header.TopRight);
+    }
+
     [Fact]
     public void Calculate_DockLeft_RoundsOnlyTheFreeRightSide()
     {

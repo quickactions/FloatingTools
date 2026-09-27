@@ -194,6 +194,56 @@ public sealed class QuickChatParagraphRuntimeTests
     private const string EnglishWrappingText =
         "This is a long English message intended to wrap across several visual lines in the conversation window so alignment can be checked reliably. End";
 
+    [Fact]
+    public void TopDockConstrainsMessagesWithoutConstrainingComposerOrSideDock()
+        => RunSta(() =>
+        {
+            var session = new PresentationSession(
+                Assistant(EnglishWrappingText), User(EnglishWrappingText));
+            var viewModel = new QuickChatViewModel(session, new PresentationImageStore());
+            viewModel.InitializeAsync().GetAwaiter().GetResult();
+            var view = new QuickChatToolView { DataContext = viewModel };
+            view.SetTopDocked(true);
+            var window = new Window
+            {
+                Content = view, Width = 720, Height = 518,
+                Left = -10_000, Top = -10_000, ShowInTaskbar = false,
+                ShowActivated = false, WindowStyle = WindowStyle.None
+            };
+
+            try
+            {
+                window.Show();
+                DrainDispatcher();
+                window.UpdateLayout();
+                var surfaces = FindDescendants<Border>(view)
+                    .Where(element => element.Name == "MessageSurface").ToArray();
+                Assert.Equal(2, surfaces.Length);
+                var assistant = surfaces.Single(element =>
+                    element.DataContext is QuickChatMessageViewModel { IsAssistant: true });
+                var user = surfaces.Single(element =>
+                    element.DataContext is QuickChatMessageViewModel { IsUser: true });
+                var composer = FindDescendants<Border>(view)
+                    .Single(element => element.Name == "ComposerContainer");
+
+                Assert.Equal(400, assistant.MaxWidth);
+                Assert.Equal(HorizontalAlignment.Left, assistant.HorizontalAlignment);
+                Assert.Equal(320, user.MaxWidth);
+                Assert.Equal(HorizontalAlignment.Right, user.HorizontalAlignment);
+                Assert.True(double.IsPositiveInfinity(composer.MaxWidth));
+
+                view.SetTopDocked(false);
+                window.UpdateLayout();
+                Assert.True(double.IsPositiveInfinity(assistant.MaxWidth));
+                Assert.Equal(HorizontalAlignment.Stretch, assistant.HorizontalAlignment);
+                Assert.Equal(320, user.MaxWidth);
+                Assert.Equal(HorizontalAlignment.Right, user.HorizontalAlignment);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     private static void AssertParagraph(
         TextBox paragraph,
         FlowDirection expectedFlow,

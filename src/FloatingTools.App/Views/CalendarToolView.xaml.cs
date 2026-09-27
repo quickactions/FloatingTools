@@ -19,6 +19,16 @@ public partial class CalendarToolView : UserControl
     private bool _hasUserSizedDayPanel;
     private double _userDayPanelHeight;
     private bool _isFullEventsSearchOpen;
+    private bool _isTopDocked;
+
+    public static readonly DependencyProperty IsTopStandardDockedProperty =
+        DependencyProperty.Register(nameof(IsTopStandardDocked), typeof(bool), typeof(CalendarToolView));
+
+    public bool IsTopStandardDocked
+    {
+        get => (bool)GetValue(IsTopStandardDockedProperty);
+        private set => SetValue(IsTopStandardDockedProperty, value);
+    }
 
     public CalendarToolView()
     {
@@ -34,6 +44,32 @@ public partial class CalendarToolView : UserControl
     {
         Subscribe(DataContext as CalendarToolViewModel);
         UpdateCalendarLayout();
+        UpdateDayPanelSizing();
+    }
+
+    public void SetTopDocked(bool isTopDocked, PanelSizePreset preset)
+    {
+        _isTopDocked = isTopDocked;
+        IsTopStandardDocked = isTopDocked && preset == PanelSizePreset.Standard;
+        TopDockCalendarScrollViewer.VerticalScrollBarVisibility = isTopDocked
+            ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+        Grid.SetRowSpan(TopDockCalendarScrollViewer, isTopDocked ? 1 : 2);
+        Grid.SetRow(DayPanelOverlay, isTopDocked ? 1 : 0);
+        Grid.SetRowSpan(DayPanelOverlay, isTopDocked ? 1 : 2);
+        MonthScrollViewer.VerticalScrollBarVisibility = isTopDocked
+            ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+        WeekScrollViewer.VerticalScrollBarVisibility = isTopDocked
+            ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+        MonthOverlayInset.Visibility = isTopDocked ? Visibility.Collapsed : Visibility.Visible;
+        WeekOverlayInset.Visibility = isTopDocked ? Visibility.Collapsed : Visibility.Visible;
+        CalendarMainContent.MinHeight = isTopDocked
+            ? PanelSizeCalculator.GetRequestedActiveToolSize(preset).Height
+                - PanelZoomCalculator.ActiveToolHeaderHeight - 34 - 12
+            : 0;
+        var bodyHeight = PanelSizeCalculator.GetRequestedActiveToolSize(preset, DockSide.Top).Height
+            - PanelZoomCalculator.ActiveToolHeaderHeight - 34 - 12;
+        CalendarBody.MinHeight = isTopDocked ? bodyHeight : 0;
+        CalendarBody.Height = isTopDocked ? bodyHeight : double.NaN;
         UpdateDayPanelSizing();
     }
 
@@ -256,14 +292,14 @@ public partial class CalendarToolView : UserControl
 
     private void UpdateDayPanelSizing()
     {
-        var regionHeight = CalendarPeriodRegion.ActualHeight;
+        var regionHeight = GetDayPanelRegionHeight();
         if (regionHeight <= 0)
         {
             return;
         }
 
         var maximumHeight = CalendarDayPanelSizing.GetMaximumHeight(regionHeight);
-        var layoutMode = CalendarLayoutModeResolver.Resolve(ActualWidth);
+        var layoutMode = GetDayPanelMinimumLayoutMode();
         var minimumHeight = CalendarDayPanelSizing.GetMinimumHeight(
             layoutMode,
             (_viewModel ?? DataContext as CalendarToolViewModel)?.IsEventEditorOpen == true);
@@ -284,6 +320,14 @@ public partial class CalendarToolView : UserControl
             regionHeight,
             layoutMode);
     }
+
+    private double GetDayPanelRegionHeight() => _isTopDocked
+        ? CalendarBody.ActualHeight - 38 - 25
+        : CalendarPeriodRegion.ActualHeight;
+
+    private CalendarLayoutMode GetDayPanelMinimumLayoutMode() => IsTopStandardDocked
+        ? CalendarLayoutMode.Compact
+        : CalendarLayoutModeResolver.Resolve(ActualWidth);
 
     private void UpdateFullEventsToolbar()
     {
@@ -375,13 +419,13 @@ public partial class CalendarToolView : UserControl
         }
 
         _dayPanelHandleDragged = true;
-        var layoutMode = CalendarLayoutModeResolver.Resolve(ActualWidth);
+        var layoutMode = GetDayPanelMinimumLayoutMode();
         var minimumHeight = CalendarDayPanelSizing.GetMinimumHeight(
             layoutMode,
             (_viewModel ?? DataContext as CalendarToolViewModel)?.IsEventEditorOpen == true);
         var requestedHeight = CalendarDayPanelSizing.Clamp(
             DayPanelExpandedContent.ActualHeight - e.VerticalChange,
-            CalendarDayPanelSizing.GetMaximumHeight(CalendarPeriodRegion.ActualHeight),
+            CalendarDayPanelSizing.GetMaximumHeight(GetDayPanelRegionHeight()),
             minimumHeight);
         _hasUserSizedDayPanel = true;
         _userDayPanelHeight = requestedHeight;

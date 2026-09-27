@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace FloatingTools.App.SharedUi.Controls;
@@ -45,10 +47,39 @@ public static class BringIntoViewOnRevealBehavior
             DispatcherPriority.Loaded,
             new Action(() =>
             {
-                if (element.IsVisible)
+                if (!element.IsVisible)
+                {
+                    return;
+                }
+
+                var scrollViewer = FindScrollViewer(element);
+                if (scrollViewer is { ViewportHeight: > 0 }
+                    && element.ActualHeight > scrollViewer.ViewportHeight)
+                {
+                    // The full section cannot fit. Reveal its beginning and
+                    // leave the remainder to normal feed scrolling.
+                    element.BringIntoView(new Rect(
+                        0, 0, element.ActualWidth, scrollViewer.ViewportHeight));
+                }
+                else
                 {
                     element.BringIntoView();
                 }
             }));
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject element)
+    {
+        for (var parent = VisualTreeHelper.GetParent(element);
+             parent is not null;
+             parent = VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is ScrollViewer viewer)
+            {
+                return viewer;
+            }
+        }
+
+        return null;
     }
 }

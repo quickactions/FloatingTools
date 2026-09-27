@@ -1,8 +1,7 @@
 namespace FloatingTools.App.Models;
 
-public enum DockSide
+public enum TopOpeningDirection
 {
-    Left,
     Right,
-    Top
+    Left
 }

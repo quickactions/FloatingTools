@@ -229,16 +229,19 @@ public sealed class WindowCoordinator
             ? monitor.DpiScale
             : 1;
 
-        var availableWidthDip = monitor.WorkArea.Width / scale;
+        var maximumPanelWidthPixels = Math.Max(1,
+            monitor.WorkArea.Width - (dockSide == DockSide.Top ? toolbarBounds.Width : 0));
+        var availableWidthDip = maximumPanelWidthPixels / scale;
         var maximumPanelHeightPixels = Math.Max(
             1,
-            monitor.WorkArea.Height - toolbarBounds.Height);
+            monitor.WorkArea.Height - (dockSide == DockSide.Top ? 0 : toolbarBounds.Height));
         var maximumPanelHeightDip = maximumPanelHeightPixels / scale;
         var fixedHostLayout = PanelZoomCalculator.CalculateFixedHostLayout(
             _viewModel.ActiveToolPanelSize,
             _viewModel.PanelZoomPercentage,
             availableWidthDip,
-            maximumPanelHeightDip);
+            maximumPanelHeightDip,
+            dockSide);
         var zoomLayout = fixedHostLayout.VisibleLayout;
 
         _viewModel.UpdateZoomContext(
@@ -249,7 +252,8 @@ public sealed class WindowCoordinator
                     _viewModel.ActiveToolPanelSize,
                     candidatePercentage,
                     availableWidthDip,
-                    maximumPanelHeightDip);
+                    maximumPanelHeightDip,
+                    dockSide);
                 return PanelZoomCalculator.ToPhysicalPixels(
                            candidate.WindowSize.Width,
                            scale)
@@ -263,9 +267,13 @@ public sealed class WindowCoordinator
                            zoomLayout.WindowSize.Height,
                            scale);
             });
-        var toolMenuSize = new ToolSize(
-            PanelSizeCalculator.ToolMenuWidth,
-            PanelSizeCalculator.GetToolMenuHeight(Enum.GetValues<ToolId>().Length));
+        var requestedToolMenuHeight = PanelSizeCalculator.GetToolMenuHeight(
+            Enum.GetValues<ToolId>().Length);
+        var toolMenuSize = dockSide == DockSide.Top
+            ? new ToolSize(
+                Math.Min(PanelSizeCalculator.ToolMenuWidth, availableWidthDip),
+                Math.Min(requestedToolMenuHeight, maximumPanelHeightDip))
+            : new ToolSize(PanelSizeCalculator.ToolMenuWidth, requestedToolMenuHeight);
         var visiblePanelSize = _viewModel.PanelState == PanelState.ToolMenu
             ? toolMenuSize
             : zoomLayout.WindowSize;
@@ -273,24 +281,27 @@ public sealed class WindowCoordinator
             ? toolMenuSize
             : fixedHostLayout.HostLayout.WindowSize;
         var visiblePanelWidthPixels = Math.Min(
-            monitor.WorkArea.Width,
+            maximumPanelWidthPixels,
             PanelZoomCalculator.ToPhysicalPixels(visiblePanelSize.Width, scale));
         var visiblePanelHeightPixels = Math.Min(
             maximumPanelHeightPixels,
             PanelZoomCalculator.ToPhysicalPixels(visiblePanelSize.Height, scale));
         var hostWidthPixels = Math.Min(
-            monitor.WorkArea.Width,
+            maximumPanelWidthPixels,
             PanelZoomCalculator.ToPhysicalPixels(hostSize.Width, scale));
         var hostHeightPixels = Math.Min(
             maximumPanelHeightPixels,
             PanelZoomCalculator.ToPhysicalPixels(hostSize.Height, scale));
 
+        var topOpeningDirection = _settings.WindowPlacement?.TopOpeningDirection
+            ?? TopOpeningDirection.Right;
         var visiblePlacement = PanelWindowPlacementCalculator.Calculate(
             toolbarBounds,
             visiblePanelWidthPixels,
             monitor,
             dockSide,
-            visiblePanelHeightPixels);
+            visiblePanelHeightPixels,
+            topOpeningDirection);
         var hostPlacement = PanelWindowPlacementCalculator.CalculateHostPlacement(
             visiblePlacement,
             visiblePanelWidthPixels,
@@ -298,12 +309,15 @@ public sealed class WindowCoordinator
             hostWidthPixels,
             hostHeightPixels,
             monitor,
-            dockSide);
+            dockSide,
+            topOpeningDirection);
         PanelWindow.PrepareVisibleLayout(
             _viewModel.PanelState,
             zoomLayout,
             dockSide,
-            hostPlacement.VisiblePanelOffset.Y / scale);
+            hostPlacement.VisiblePanelOffset.Y / scale,
+            topOpeningDirection,
+            toolMenuSize);
 
         if (!PanelWindow.IsVisible)
         {
@@ -332,7 +346,13 @@ public sealed class WindowCoordinator
         var persistedPlacement = new WindowPlacement(
             monitor.MonitorId,
             dockSide,
-            (visiblePlacement.ToolbarPosition.Y - monitor.WorkArea.Top) / scale);
+            (visiblePlacement.ToolbarPosition.Y - monitor.WorkArea.Top) / scale)
+        {
+            HorizontalOffset = dockSide == DockSide.Top
+                ? (visiblePlacement.ToolbarPosition.X - monitor.WorkArea.Left) / scale
+                : 0,
+            TopOpeningDirection = topOpeningDirection
+        };
         if (_settings.WindowPlacement != persistedPlacement)
         {
             _settings.WindowPlacement = persistedPlacement;

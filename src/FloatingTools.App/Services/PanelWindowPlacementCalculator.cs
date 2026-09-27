@@ -9,13 +9,30 @@ public static class PanelWindowPlacementCalculator
         int panelWidthPixels,
         MonitorWorkArea monitor,
         DockSide dockSide,
-        int requiredPanelHeightPixels = 0)
+        int requiredPanelHeightPixels = 0,
+        TopOpeningDirection topOpeningDirection = TopOpeningDirection.Right)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(panelWidthPixels);
         ArgumentOutOfRangeException.ThrowIfNegative(requiredPanelHeightPixels);
         ArgumentNullException.ThrowIfNull(monitor);
 
         var workArea = monitor.WorkArea;
+        if (dockSide == DockSide.Top)
+        {
+            var panelWidth = Math.Min(panelWidthPixels, Math.Max(1, workArea.Width - toolbarBounds.Width));
+            var topToolbarLeft = topOpeningDirection == TopOpeningDirection.Right
+                ? Math.Clamp(toolbarBounds.Left, workArea.Left,
+                    Math.Max(workArea.Left, workArea.Right - toolbarBounds.Width - panelWidth))
+                : Math.Clamp(toolbarBounds.Left, workArea.Left + panelWidth,
+                    Math.Max(workArea.Left + panelWidth, workArea.Right - toolbarBounds.Width));
+            var topPanelLeft = topOpeningDirection == TopOpeningDirection.Right
+                ? topToolbarLeft + toolbarBounds.Width
+                : topToolbarLeft - panelWidth;
+            return new PanelWindowPlacement(
+                new PixelPoint(topToolbarLeft, workArea.Top),
+                new PixelPoint(topPanelLeft, workArea.Top));
+        }
+
         var toolbarLeft = dockSide == DockSide.Left
             ? workArea.Left
             : Math.Max(workArea.Left, workArea.Right - toolbarBounds.Width);
@@ -48,7 +65,8 @@ public static class PanelWindowPlacementCalculator
         int hostWidthPixels,
         int hostHeightPixels,
         MonitorWorkArea monitor,
-        DockSide dockSide)
+        DockSide dockSide,
+        TopOpeningDirection topOpeningDirection = TopOpeningDirection.Right)
     {
         ArgumentNullException.ThrowIfNull(visiblePanelPlacement);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -65,6 +83,16 @@ public static class PanelWindowPlacementCalculator
         }
 
         var workArea = monitor.WorkArea;
+        if (dockSide == DockSide.Top)
+        {
+            var topHostLeft = topOpeningDirection == TopOpeningDirection.Right
+                ? visiblePanelPlacement.PanelPosition.X
+                : visiblePanelPlacement.PanelPosition.X + visiblePanelWidthPixels - hostWidthPixels;
+            return new PanelHostPlacement(
+                new PixelPoint(topHostLeft, workArea.Top),
+                new PixelPoint(visiblePanelPlacement.PanelPosition.X - topHostLeft, 0));
+        }
+
         var hostLeft = dockSide == DockSide.Left
             ? workArea.Left
             : Math.Max(workArea.Left, workArea.Right - hostWidthPixels);

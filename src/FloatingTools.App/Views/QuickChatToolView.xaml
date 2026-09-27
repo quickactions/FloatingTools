@@ -290,6 +290,17 @@
                                     </Border>
                                 </Grid>
                                 <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsTopDocked, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                                        <Setter TargetName="MessageSurface"
+                                                Property="MaxWidth"
+                                                Value="{StaticResource TopDockDefaultReadingMaxWidth}" />
+                                        <Setter TargetName="MessageSurface"
+                                                Property="Margin"
+                                                Value="{StaticResource TopDockReadingHorizontalMargin}" />
+                                        <Setter TargetName="MessageSurface"
+                                                Property="HorizontalAlignment"
+                                                Value="Left" />
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding IsUser}" Value="True">
                                         <Setter TargetName="MessageSurface" Property="MaxWidth" Value="320" />
                                         <Setter TargetName="MessageSurface" Property="HorizontalAlignment" Value="Right" />

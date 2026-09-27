@@ -51,9 +51,11 @@ public sealed class CalendarDayPanelMinimumHeightConverter : IMultiValueConverte
         Type targetType,
         object parameter,
         CultureInfo culture) => CalendarDayPanelSizing.GetMinimumHeight(
-        values.ElementAtOrDefault(0) is CalendarLayoutMode mode
-            ? mode
-            : CalendarLayoutMode.Compact,
+        values.ElementAtOrDefault(2) is true
+            ? CalendarLayoutMode.Compact
+            : values.ElementAtOrDefault(0) is CalendarLayoutMode mode
+                ? mode
+                : CalendarLayoutMode.Compact,
         values.ElementAtOrDefault(1) is true);
 
     public object[] ConvertBack(

@@ -19,7 +19,7 @@ public sealed class CalendarFocusedCorrectionUiContractTests
         var splitter = Named(document, "GridSplitter", "DayPanelSplitter");
         var dayScroller = Named(document, "ScrollViewer", "DayPanelScrollViewer");
 
-        Assert.Equal((string?)period.Attribute("Grid.Row"), (string?)overlay.Attribute("Grid.Row"));
+        Assert.Equal("0", (string?)overlay.Attribute("Grid.Row"));
         Assert.Equal("Bottom", (string?)overlay.Attribute("VerticalAlignment"));
         Assert.Equal("10", (string?)overlay.Attribute("Panel.ZIndex"));
         Assert.Equal("17", (string?)splitter.Attribute("Height"));
@@ -229,7 +229,7 @@ public sealed class CalendarFocusedCorrectionUiContractTests
         Assert.Null(monthLayer.Attribute("HorizontalAlignment"));
         Assert.Contains(monthItems.Ancestors(), ancestor => ReferenceEquals(ancestor, period));
         Assert.Contains(weekItems.Ancestors(), ancestor => ReferenceEquals(ancestor, period));
-        Assert.Equal((string?)period.Attribute("Grid.Row"), (string?)overlay.Attribute("Grid.Row"));
+        Assert.Equal("0", (string?)overlay.Attribute("Grid.Row"));
         Assert.Equal(2, monthLayer.Descendants(Presentation + "RowDefinition").Count());
     }
 
