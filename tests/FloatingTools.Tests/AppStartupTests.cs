@@ -6,6 +6,16 @@ namespace FloatingTools.Tests;
 public sealed class AppStartupTests
 {
     [Fact]
+    public void Startup_LoadsPersistentTranslationHistoryAndShutdownDoesNotClearIt()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+        Assert.Contains("new JsonTranslationHistoryStore", source);
+        Assert.Contains("\"translation-history.json\"", source);
+        Assert.Contains("await translationToolViewModel.LoadHistoryAsync();", source);
+        Assert.DoesNotContain("historyStore.Clear", source, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void OnStartup_IsAsyncSoSavedWordsLoadingDoesNotBlockTheUiDispatcher()
     {
         var method = typeof(FloatingTools.App.App).GetMethod(

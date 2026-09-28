@@ -1152,6 +1152,173 @@ public sealed class TranslationToolViewModelTests
         Assert.Equal(50, settings.HistoryLimit);
     }
 
+    [Fact]
+    public async Task PersistentHistory_RestartRestoresOrderAndPanelClosureDoesNotClearIt()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            var vm = CreateViewModel(new RecordingTranslationService("שלום"),
+                new JsonTranslationHistoryStore(path));
+            await vm.LoadHistoryAsync();
+            foreach (var source in new[] { "first", "second", "third" })
+            {
+                vm.InputText = source;
+                await vm.SendCommand.ExecuteAsync(null);
+            }
+            var toolbar = new FloatingToolbarViewModel();
+            toolbar.SelectToolCommand.Execute(ToolId.Translation);
+            toolbar.ClosePanelCommand.Execute(null);
+            var restarted = CreateViewModel(historyStore: new JsonTranslationHistoryStore(path));
+            await restarted.LoadHistoryAsync();
+            await restarted.LoadHistoryAsync();
+            Assert.Equal(new[] { "first", "second", "third" }, restarted.Items.Select(item => item.SourceText));
+            Assert.All(restarted.Items, item => Assert.False(item.IsExpanded));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task DeleteEntry_RemovesExpandedEntryAndPersistsWithoutChangingComposerOrOtherItems()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            var vm = CreateViewModel(new RecordingTranslationService("result"), new JsonTranslationHistoryStore(path));
+            foreach (var source in new[] { "first", "second", "third" })
+            {
+                vm.InputText = source;
+                await vm.SendCommand.ExecuteAsync(null);
+            }
+            vm.InputText = "keep composer";
+            var removed = vm.Items[1];
+            removed.ToggleActionsCommand.Execute(null);
+            removed.Alternatives.Add(new AlternativeTranslationViewModel("another"));
+            vm.DeleteEntryCommand.Execute(removed);
+            Assert.Null(vm.ActiveExpandedEntry);
+            Assert.False(removed.IsExpanded);
+            Assert.Equal("keep composer", vm.InputText);
+            Assert.Equal(new[] { "first", "third" }, vm.Items.Select(item => item.SourceText));
+            vm.DeleteEntryCommand.Execute(removed);
+            var restarted = CreateViewModel(historyStore: new JsonTranslationHistoryStore(path));
+            await restarted.LoadHistoryAsync();
+            Assert.Equal(vm.Items.Select(item => item.Entry.Id), restarted.Items.Select(item => item.Entry.Id));
+            vm.ClearHistoryCommand.Execute(null);
+            Assert.Empty(vm.Items);
+            Assert.False(vm.ClearHistoryCommand.CanExecute(null));
+            var afterClear = CreateViewModel(historyStore: new JsonTranslationHistoryStore(path));
+            await afterClear.LoadHistoryAsync();
+            Assert.Empty(afterClear.Items);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(199)]
+    [InlineData(200)]
+    [InlineData(201)]
+    [InlineData(205)]
+    public async Task PersistentHistory_DefaultCapacityKeepsNewestEntriesAcrossRestart(int count)
+    {
+        Assert.Equal(200, HistoryLimitOptions.Default);
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            var vm = CreateViewModel(new RecordingTranslationService("result"), new JsonTranslationHistoryStore(path));
+            for (var index = 0; index < count; index++)
+            {
+                vm.InputText = "source-" + index;
+                await vm.SendCommand.ExecuteAsync(null);
+            }
+            var expected = Enumerable.Range(Math.Max(0, count - HistoryLimitOptions.Default),
+                Math.Min(count, HistoryLimitOptions.Default)).Select(index => "source-" + index).ToArray();
+            Assert.Equal(expected, vm.Items.Select(item => item.SourceText));
+            var restarted = CreateViewModel(historyStore: new JsonTranslationHistoryStore(path));
+            await restarted.LoadHistoryAsync();
+            Assert.Equal(expected, restarted.Items.Select(item => item.SourceText));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task PersistentHistory_LoweringConfiguredLimitEvictsExpandedOldestEntriesOnDisk()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            var store = new JsonTranslationHistoryStore(path);
+            for (var i = 0; i < 60; i++) await store.AddOrUpdateAsync(CreateEntry("source-" + i, "result"));
+            var vm = await CreateConfiguredViewModelAsync(new RecordingTranslationService("result"),
+                new AppSettings { HistoryLimit = 100 }, store);
+            await vm.LoadHistoryAsync();
+            vm.Items[0].ToggleActionsCommand.Execute(null);
+            vm.Settings.SelectedHistoryLimit = 50;
+            Assert.Null(vm.ActiveExpandedEntry);
+            Assert.Equal("source-10", vm.Items[0].SourceText);
+            var restarted = await CreateConfiguredViewModelAsync(new RecordingTranslationService("result"),
+                new AppSettings { HistoryLimit = 50 }, new JsonTranslationHistoryStore(path));
+            await restarted.LoadHistoryAsync();
+            Assert.Equal(vm.Items.Select(item => item.Entry.Id), restarted.Items.Select(item => item.Entry.Id));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RemovingEntry_CancelsPendingAlternativeAndIgnoresLateResults(bool clearAll)
+    {
+        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        var service = new AlternativeTranslationService((_, _, _, _, _, cancellation) =>
+        {
+            token = cancellation;
+            return completion.Task;
+        });
+        var store = new InMemoryTranslationHistoryStore();
+        await store.AddOrUpdateAsync(CreateEntry("Hello", "שלום"));
+        var vm = CreateViewModel(service, store);
+        await vm.LoadHistoryAsync();
+        var removed = Assert.Single(vm.Items);
+        removed.ToggleActionsCommand.Execute(null);
+        var revealVersion = removed.RevealRequestVersion;
+        var request = removed.RequestAlternativeCommand.ExecuteAsync(null);
+        if (clearAll) vm.ClearHistoryCommand.Execute(null);
+        else vm.DeleteEntryCommand.Execute(removed);
+        Assert.True(token.IsCancellationRequested);
+        completion.SetResult("late result");
+        await request;
+        Assert.Empty(vm.Items);
+        Assert.Null(vm.ActiveExpandedEntry);
+        Assert.Empty(removed.Alternatives);
+        Assert.Equal(revealVersion, removed.RevealRequestVersion);
+        Assert.False(removed.RequestAlternativeCommand.CanExecute(null));
+        Assert.Empty(await store.LoadAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HistoryWriteFailure_LeavesVisibleAndPersistedEntryIntact(bool clearAll)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var path = Path.Combine(directory, "history.json");
+        try
+        {
+            var store = new JsonTranslationHistoryStore(path);
+            await store.AddOrUpdateAsync(CreateEntry("Hello", "שלום"));
+            var vm = CreateViewModel(historyStore: store);
+            await vm.LoadHistoryAsync();
+            Directory.CreateDirectory(path + ".tmp");
+            if (clearAll) vm.ClearHistoryCommand.Execute(null);
+            else vm.DeleteEntryCommand.Execute(vm.Items[0]);
+            Assert.NotNull(vm.ErrorMessage);
+            Assert.Single(vm.Items);
+            Assert.Single(await new JsonTranslationHistoryStore(path).LoadAsync());
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
+    }
+
     private static TranslationToolViewModel CreateViewModel(
         ITranslationService? translationService = null,
         ITranslationHistoryStore? historyStore = null,

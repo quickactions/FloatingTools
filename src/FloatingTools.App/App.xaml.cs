@@ -94,7 +94,10 @@ public partial class App : Application
             placementService,
             new WindowsScreenRegionCaptureService(),
             _localOcrService);
-        var translationHistoryStore = new InMemoryTranslationHistoryStore();
+        var translationHistoryStore = new JsonTranslationHistoryStore(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "FloatingTools",
+            "translation-history.json"));
         var savedWordsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "FloatingTools",
@@ -166,6 +169,7 @@ public partial class App : Application
             translationCredentialStore,
             applicationOpenAiConfigurationProvider,
             applicationConnectionTester);
+        await translationToolViewModel.LoadHistoryAsync();
 #if DEBUG
         DebugTranslationFeedSeeder.Seed(translationToolViewModel);
 #endif

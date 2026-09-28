@@ -81,6 +81,18 @@ public partial class ToolbarWindow : Window
 
     public void CompletePendingDrag() => CompleteDrag(releaseMouseCapture: true);
 
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (!e.Handled && e.Key == Key.Escape
+            && DataContext is FloatingTools.App.ViewModels.FloatingToolbarViewModel viewModel
+            && viewModel.PanelState != PanelState.Closed)
+        {
+            viewModel.ClosePanelCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
     public void MinimizeUi()
     {
         if (_closed || WindowState == WindowState.Minimized) return;

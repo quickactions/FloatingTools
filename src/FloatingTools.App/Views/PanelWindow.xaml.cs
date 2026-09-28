@@ -130,6 +130,19 @@ public partial class PanelWindow : Window
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        // Bubble only: child editors and popups get the first opportunity to
+        // cancel their own UI. Reuse the close button's Notes-save lifecycle.
+        if (!e.Handled && e.Key == Key.Escape
+            && DataContext is FloatingToolbarViewModel { PanelState: not PanelState.Closed })
+        {
+            CloseRequested?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
+    }
+
     private void FindCommand_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
     {
         e.CanExecute = DataContext is FloatingToolbarViewModel viewModel

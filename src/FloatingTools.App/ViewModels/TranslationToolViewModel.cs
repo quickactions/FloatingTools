@@ -272,14 +272,13 @@ public partial class TranslationToolViewModel : ObservableObject
 
         var entries = await _historyStore.LoadAsync(cancellationToken);
         foreach (var entry in entries
-                     .OrderByDescending(entry => entry.CreatedAt)
-                     .Take(_appSettings.HistoryLimit)
-                     .OrderBy(entry => entry.CreatedAt))
+                     .OrderBy(entry => entry.CreatedAt)
+                     .TakeLast(_appSettings.HistoryLimit))
         {
             Items.Add(CreateEntryViewModel(entry));
         }
 
-        _historyStore.TrimToLimit(_appSettings.HistoryLimit);
+        ApplyHistoryLimit(_appSettings.HistoryLimit);
 
         _historyLoaded = true;
     }
@@ -518,11 +517,12 @@ public partial class TranslationToolViewModel : ObservableObject
 
     private void ClearHistory()
     {
-        ActiveExpandedEntry = null;
-        Items.Clear();
         try
         {
             _historyStore.Clear();
+            foreach (var entry in Items) entry.Detach();
+            ActiveExpandedEntry = null;
+            Items.Clear();
         }
         catch
         {
@@ -532,11 +532,31 @@ public partial class TranslationToolViewModel : ObservableObject
 
     private bool CanClearHistory() => Items.Count > 0;
 
+    [RelayCommand]
+    private void DeleteEntry(TranslationEntryViewModel? entry)
+    {
+        if (entry is null || !Items.Contains(entry)) return;
+        try
+        {
+            _historyStore.Remove(entry.Entry.Id);
+            entry.Detach();
+            if (ReferenceEquals(ActiveExpandedEntry, entry)) ActiveExpandedEntry = null;
+            Items.Remove(entry);
+        }
+        catch
+        {
+            ErrorMessage = "Could not delete this translation.";
+        }
+    }
+
     private void ApplyHistoryLimit(int maximumEntries)
     {
         maximumEntries = HistoryLimitOptions.Normalize(maximumEntries);
         while (Items.Count > maximumEntries)
         {
+            var oldest = Items[0];
+            oldest.Detach();
+            if (ReferenceEquals(ActiveExpandedEntry, oldest)) ActiveExpandedEntry = null;
             Items.RemoveAt(0);
         }
 

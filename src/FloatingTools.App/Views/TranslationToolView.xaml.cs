@@ -161,6 +161,16 @@ public partial class TranslationToolView : UserControl
         }
     }
 
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (!e.Handled && e.Key == Key.Escape && _viewModel?.IsAppMenuOpen == true)
+        {
+            _viewModel.ToggleAppMenuCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         UnsubscribeFromItems();

@@ -17,6 +17,7 @@ public partial class TranslationEntryViewModel : ObservableObject
     private readonly ISavedWordsService? _savedWordsService;
     private readonly Action<string?> _setErrorMessage;
     private readonly Action<TranslationEntryViewModel>? _toggleActions;
+    private bool _detached;
 
     [ObservableProperty]
     private bool _isFavorite;
@@ -164,6 +165,15 @@ public partial class TranslationEntryViewModel : ObservableObject
         }
     }
 
+    internal void Detach()
+    {
+        _detached = true;
+        SetExpanded(false);
+        RequestAlternativeCommand.Cancel();
+        if (_savedWordsService is not null)
+            _savedWordsService.Changed -= OnSavedWordsChanged;
+    }
+
     [RelayCommand(CanExecute = nameof(HasTranslation))]
     private void Copy()
     {
@@ -240,6 +250,8 @@ public partial class TranslationEntryViewModel : ObservableObject
                 Alternatives.Select(item => item.Text).ToArray(),
                 cancellationToken);
 
+            if (_detached) return;
+
             if (alternative is null)
             {
                 AlternativeMessage = "No more alternatives.";
@@ -263,17 +275,18 @@ public partial class TranslationEntryViewModel : ObservableObject
         }
         catch (Exception)
         {
-            AlternativeMessage = "Could not load an alternative. Try again.";
+            if (!_detached) AlternativeMessage = "Could not load an alternative. Try again.";
         }
         finally
         {
             IsAlternativeLoading = false;
-            RevealRequestVersion++;
+            if (!_detached) RevealRequestVersion++;
         }
     }
 
     private bool CanRequestAlternative() =>
-        _translationService is not null
+        !_detached
+        && _translationService is not null
         && HasTranslation
         && !IsAlternativeLoading
         && !IsAlternativeExhausted

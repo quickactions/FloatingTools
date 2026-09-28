@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using FloatingTools.App.Platform.Windows;
 using FloatingTools.App.Models;
@@ -24,6 +26,227 @@ namespace FloatingTools.Tests.Views;
 [Collection(FloatingTools.Tests.WpfResourceCollection.Name)]
 public sealed class PanelVisibilityRuntimeTests
 {
+    [Fact]
+    public void TranslationDeleteAction_RendersOnlyTrashIconAndStillDeletesItsEntry()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Translation, null);
+            harness.Translation.InputText = "UI test entry";
+            harness.Translation.SendCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            var entry = Assert.Single(harness.Translation.Items);
+            entry.ToggleActionsCommand.Execute(null);
+            DrainDispatcher();
+            var view = (TranslationToolView)((ContentControl)harness.Panel.FindName("TranslationTool")).Content;
+            var button = EscapeDescendants(view).OfType<Button>()
+                .Single(candidate => ReferenceEquals(candidate.Command, harness.Translation.DeleteEntryCommand));
+            Assert.Same(entry, button.CommandParameter);
+            Assert.Equal("Delete this translation", button.ToolTip);
+            Assert.True(button.IsVisible);
+            Assert.True(button.IsEnabled);
+            Assert.Empty(EscapeDescendants(button).OfType<TextBlock>());
+            var icons = EscapeDescendants(button).OfType<System.Windows.Shapes.Path>().ToArray();
+            Assert.Equal(2, icons.Length);
+            Assert.All(icons, icon => Assert.True(icon.ActualWidth > 0 && icon.ActualHeight > 0));
+            var actions = (StackPanel)VisualTreeHelper.GetParent(button);
+            var otherLabels = EscapeDescendants(actions).OfType<TextBlock>().Select(text => text.Text).ToArray();
+            Assert.Equal(new[] { "Copy", "Save", "Alternative" }, otherLabels);
+            var peer = new System.Windows.Automation.Peers.ButtonAutomationPeer(button);
+            var invoke = (System.Windows.Automation.Provider.IInvokeProvider)peer.GetPattern(
+                System.Windows.Automation.Peers.PatternInterface.Invoke);
+            invoke.Invoke();
+            DrainDispatcher();
+            Assert.Empty(harness.Translation.Items);
+            Assert.Null(harness.Translation.ActiveExpandedEntry);
+        });
+
+    [Theory]
+    [InlineData(ToolId.Translation)]
+    [InlineData(ToolId.Notes)]
+    [InlineData(ToolId.QuickChat)]
+    [InlineData(ToolId.Calendar)]
+    public void Escape_FromToolTextControlClosesPanelWithoutExitingOrChangingTool(ToolId tool)
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(tool, null);
+            var host = (ContentControl)harness.Panel.FindName(tool + "Tool");
+            if (tool == ToolId.Notes)
+                ((NotesToolViewModel)((FrameworkElement)host.Content).DataContext).Content = "keep note";
+            if (tool == ToolId.Calendar)
+                ((CalendarToolView)host.Content).FocusSearch();
+            DrainDispatcher();
+            var editor = EscapeDescendants((DependencyObject)host.Content).OfType<TextBox>()
+                .First(textBox => textBox.IsVisible && textBox.IsEnabled);
+            editor.Focus();
+            var args = RaiseEscape(editor);
+            DrainDispatcher();
+            Assert.True(args.Handled);
+            Assert.Equal(PanelState.Closed, harness.ViewModel.PanelState);
+            Assert.False(harness.Panel.IsVisible);
+            Assert.Equal(tool, harness.ViewModel.ActiveTool);
+            Assert.True(harness.Toolbar.IsVisible);
+            Assert.True(harness.Toolbar.IsLoaded);
+        });
+
+    [Theory]
+    [InlineData(PanelState.ActiveTool)]
+    [InlineData(PanelState.ToolMenu)]
+    [InlineData(PanelState.Closed)]
+    public void Escape_FromToolbarClosesOpenSurfaceAndClosedIsANoOp(PanelState initial)
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Translation, null);
+            if (initial == PanelState.ToolMenu) harness.ViewModel.ToggleToolMenuCommand.Execute(null);
+            if (initial == PanelState.Closed) harness.ClosePanel();
+            var changes = 0;
+            harness.ViewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(FloatingToolbarViewModel.PanelState)) changes++;
+            };
+            var button = (Button)harness.Toolbar.FindName("ToolsMenuButton");
+            var args = RaiseEscape(button);
+            DrainDispatcher();
+            Assert.Equal(PanelState.Closed, harness.ViewModel.PanelState);
+            Assert.Equal(initial == PanelState.Closed ? 0 : 1, changes);
+            Assert.Equal(initial != PanelState.Closed, args.Handled);
+            Assert.False(harness.Toolbar.IsToolStripExpanded);
+            Assert.False(harness.Panel.IsVisible);
+            Assert.True(harness.Toolbar.IsLoaded);
+        });
+
+    [Fact]
+    public void Escape_ChildHandlerGetsFirstChanceAndDoesNotClosePanel()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Translation, null);
+            var view = (TranslationToolView)((ContentControl)harness.Panel.FindName("TranslationTool")).Content;
+            var editor = (TextBox)view.FindName("ComposerTextBox");
+            editor.KeyDown += (_, e) => { if (e.Key == Key.Escape) e.Handled = true; };
+            Assert.True(RaiseEscape(editor).Handled);
+            Assert.Equal(PanelState.ActiveTool, harness.ViewModel.PanelState);
+            Assert.True(harness.Panel.IsVisible);
+        });
+
+    [Fact]
+    public void Escape_TranslationAssistantMenuClosesBeforePanel()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Translation, null);
+            var view = (TranslationToolView)((ContentControl)harness.Panel.FindName("TranslationTool")).Content;
+            var editor = (TextBox)view.FindName("ComposerTextBox");
+            harness.Translation.IsAppMenuOpen = true;
+            Assert.True(RaiseEscape(editor).Handled);
+            Assert.False(harness.Translation.IsAppMenuOpen);
+            Assert.Equal(PanelState.ActiveTool, harness.ViewModel.PanelState);
+            Assert.True(RaiseEscape(editor).Handled);
+            Assert.Equal(PanelState.Closed, harness.ViewModel.PanelState);
+        });
+
+    [Fact]
+    public void Escape_ContextMenuConsumesInputWithoutClosingPanel()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Translation, null);
+            var view = (TranslationToolView)((ContentControl)harness.Panel.FindName("TranslationTool")).Content;
+            var editor = (TextBox)view.FindName("ComposerTextBox");
+            var item = new MenuItem { Header = "Copy" };
+            var menu = new ContextMenu { PlacementTarget = editor };
+            menu.Items.Add(item);
+            try
+            {
+                menu.IsOpen = true;
+                DrainDispatcher();
+                Assert.True(menu.IsOpen);
+                item.Focus();
+                Assert.True(RaiseEscape(item).Handled);
+                DrainDispatcher();
+                Assert.False(menu.IsOpen);
+                Assert.Equal(PanelState.ActiveTool, harness.ViewModel.PanelState);
+                Assert.True(harness.Panel.IsVisible);
+            }
+            finally { menu.IsOpen = false; }
+        });
+
+    private static KeyEventArgs RaiseEscape(UIElement control)
+    {
+        var args = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(control),
+            Environment.TickCount, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        control.RaiseEvent(args);
+        if (!args.Handled)
+        {
+            args.RoutedEvent = Keyboard.KeyDownEvent;
+            control.RaiseEvent(args);
+        }
+        return args;
+    }
+
+    [Fact]
+    public void Escape_NotesRenameCancelsEditingWithoutClosingPanel()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Notes, null);
+            var view = (NotesToolView)((ContentControl)harness.Panel.FindName("NotesTool")).Content;
+            var notes = (NotesToolViewModel)view.DataContext;
+            notes.Content = "existing note";
+            notes.IsMenuOpen = true;
+            notes.BeginRenameCommand.Execute(notes.ActiveNote);
+            DrainDispatcher();
+            Assert.NotNull(notes.RenamingNote);
+            var editor = EscapeDescendants(view).OfType<TextBox>()
+                .Single(textBox => textBox.IsVisible && textBox.DataContext is NoteDocument { IsRenaming: true });
+            Assert.True(RaiseEscape(editor).Handled);
+            Assert.Null(notes.RenamingNote);
+            Assert.Equal(PanelState.ActiveTool, harness.ViewModel.PanelState);
+            Assert.True(harness.Panel.IsVisible);
+        });
+
+    [Fact]
+    public void Escape_CalendarEventEditorCancelsEditingWithoutClosingPanel()
+        => WpfTestApplication.Run(() =>
+        {
+            using var harness = ShortcutHarness.Create(ToolId.Calendar, null);
+            var view = (CalendarToolView)((ContentControl)harness.Panel.FindName("CalendarTool")).Content;
+            var calendar = (CalendarToolViewModel)view.DataContext;
+            calendar.SelectDateCommand.Execute(new DateOnly(2026, 9, 17));
+            calendar.BeginAddEventCommand.Execute(null);
+            DrainDispatcher();
+            Assert.True(calendar.IsEventEditorOpen);
+            var editor = (TextBox)view.FindName("EventEditorTextBox");
+            Assert.True(RaiseEscape(editor).Handled);
+            Assert.False(calendar.IsEventEditorOpen);
+            Assert.Equal(PanelState.ActiveTool, harness.ViewModel.PanelState);
+            Assert.True(harness.Panel.IsVisible);
+        });
+
+    [Fact]
+    public void ApplicationClose_DoesNotClearPersistentTranslationHistory()
+        => WpfTestApplication.Run(() =>
+        {
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid() + ".json");
+            try
+            {
+                using (var harness = ShortcutHarness.Create(ToolId.Translation, null,
+                    historyStore: new JsonTranslationHistoryStore(path)))
+                {
+                    harness.Translation.InputText = "keep after shutdown";
+                    harness.Translation.SendCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                    Assert.Single(harness.Translation.Items);
+                }
+                var restored = new JsonTranslationHistoryStore(path).LoadAsync().GetAwaiter().GetResult();
+                Assert.Equal("keep after shutdown", Assert.Single(restored).SourceText);
+            }
+            finally { System.IO.File.Delete(path); }
+        });
+
+    private static IEnumerable<DependencyObject> EscapeDescendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var descendant in EscapeDescendants(child)) yield return descendant;
+        }
+    }
+
     [Fact]
     public void ToolMenu_ReplacesActivePanelAndSelectionOpensChosenTool()
         => WpfTestApplication.Run(() =>
@@ -1283,7 +1506,8 @@ public sealed class PanelVisibilityRuntimeTests
         public TranslationToolViewModel Translation => _fixture.Translation;
 
         public static ShortcutHarness Create(
-            ToolId initialTool, string? capturedText, bool ocrFails = false)
+            ToolId initialTool, string? capturedText, bool ocrFails = false,
+            ITranslationHistoryStore? historyStore = null)
         {
             var viewModel = new FloatingToolbarViewModel(initialTool);
             viewModel.SelectToolCommand.Execute(initialTool);
@@ -1303,7 +1527,7 @@ public sealed class PanelVisibilityRuntimeTests
                 _ => overlay,
                 () => placement.GetMonitors().First(monitor => monitor.IsPrimary));
             var translator = new RecordingTranslationService();
-            var fixture = PanelFixture.Create(viewModel, capture, translator);
+            var fixture = PanelFixture.Create(viewModel, capture, translator, historyStore);
             var hotkeys = new GlobalHotkeyService();
             var theme = new ThemeService(
                 AppAppearanceMode.Dark,
@@ -1478,7 +1702,8 @@ public sealed class PanelVisibilityRuntimeTests
         public static PanelFixture Create(
             FloatingToolbarViewModel toolbarViewModel,
             IScreenTextCaptureService? screenTextCaptureService = null,
-            ITranslationService? translationService = null)
+            ITranslationService? translationService = null,
+            ITranslationHistoryStore? historyStore = null)
         {
             var savedWords = new SavedWordsService(new InMemorySavedWordsStore());
             savedWords.InitializeAsync().GetAwaiter().GetResult();
@@ -1486,7 +1711,7 @@ public sealed class PanelVisibilityRuntimeTests
             frequentWords.InitializeAsync().GetAwaiter().GetResult();
             var translation = new TranslationToolViewModel(
                 translationService ?? new UnconfiguredTranslationService(),
-                new InMemoryTranslationHistoryStore(),
+                historyStore ?? new InMemoryTranslationHistoryStore(),
                 new NullClipboardService(),
                 savedWords,
                 new NullSavedWordsExportService(),

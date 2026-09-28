@@ -5,6 +5,19 @@ namespace FloatingTools.Tests.Views;
 public sealed class TranslationToolViewStyleTests
 {
     [Fact]
+    public void Feed_DeleteActionReusesEntryActionStyleAndTargetsItsOwnEntry()
+    {
+        XNamespace p = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var button = XDocument.Load(FindTranslationToolViewPath()).Descendants(p + "Button")
+            .Single(element => ((string?)element.Attribute("Command"))?.Contains("DeleteEntryCommand") == true);
+        Assert.Equal("{Binding}", (string?)button.Attribute("CommandParameter"));
+        Assert.Equal("{StaticResource ActionButtonStyle}", (string?)button.Attribute("Style"));
+        Assert.Empty(button.Descendants(p + "TextBlock"));
+        Assert.Equal("Delete this translation", (string?)button.Attribute("ToolTip"));
+        Assert.Equal(2, button.Descendants(p + "Path").Count());
+    }
+
+    [Fact]
     public void TranslationMenuItemStyle_UsesSharedButtonFoundationAcrossTheButton()
     {
         var document = XDocument.Load(FindTranslationToolViewPath());

@@ -53,8 +53,8 @@ public sealed class InMemoryTranslationHistoryStore : ITranslationHistoryStore
             }
 
             var retainedIds = _entries
-                .OrderByDescending(entry => entry.CreatedAt)
-                .Take(maximumEntries)
+                .OrderBy(entry => entry.CreatedAt)
+                .TakeLast(maximumEntries)
                 .Select(entry => entry.Id)
                 .ToHashSet();
             _entries.RemoveAll(entry => !retainedIds.Contains(entry.Id));
@@ -66,6 +66,14 @@ public sealed class InMemoryTranslationHistoryStore : ITranslationHistoryStore
         lock (_syncRoot)
         {
             _entries.Clear();
+        }
+    }
+
+    public void Remove(Guid entryId)
+    {
+        lock (_syncRoot)
+        {
+            _entries.RemoveAll(entry => entry.Id == entryId);
         }
     }
 }

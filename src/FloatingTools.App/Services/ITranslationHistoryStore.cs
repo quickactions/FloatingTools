@@ -14,4 +14,6 @@ public interface ITranslationHistoryStore
     void TrimToLimit(int maximumEntries);
 
     void Clear();
+
+    void Remove(Guid entryId);
 }
