@@ -29,7 +29,7 @@ public sealed class AppStartupTests
     [Fact]
     public void Startup_ComposesSharedAiInfrastructureForTranslation()
     {
-        var source = File.ReadAllText(FindAppSourcePath());
+        var source = File.ReadAllText(FindAppSourcePath()).ReplaceLineEndings("\n");
 
         Assert.Contains("new WindowsDpapiAiCredentialStoreProvider", source);
         Assert.Contains("var aiConfigurationResolver = new AiConfigurationResolver", source);
