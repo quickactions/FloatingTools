@@ -30,6 +30,40 @@ public sealed class WindowPlacementCalculatorTests
     }
 
     [Theory]
+    [InlineData(100, 10, DockSide.Left)] // Top-left corner.
+    [InlineData(1820, 10, DockSide.Right)] // Top-right corner.
+    [InlineData(960, 10, DockSide.Top)] // Top-center.
+    [InlineData(480, 10, DockSide.Top)] // Upper-left quarter, outside corner zone.
+    [InlineData(1440, 10, DockSide.Top)] // Upper-right quarter, outside corner zone.
+    [InlineData(100, 500, DockSide.Left)]
+    [InlineData(1820, 500, DockSide.Right)]
+    [InlineData(287, 10, DockSide.Left)] // Just inside left 15% zone.
+    [InlineData(288, 10, DockSide.Left)] // Exactly on left threshold.
+    [InlineData(289, 10, DockSide.Top)] // Just outside left zone.
+    [InlineData(1633, 10, DockSide.Right)] // Just inside right 15% zone.
+    [InlineData(1632, 10, DockSide.Right)] // Exactly on right threshold.
+    [InlineData(1631, 10, DockSide.Top)] // Just outside right zone.
+    [InlineData(480, 500, DockSide.Left)] // Outside corner zone, but side is nearer.
+    [InlineData(1440, 500, DockSide.Right)] // Symmetric nearest-side fallback.
+    public void ChooseNearestDockSide_UsesSymmetricCornerPriorityForBothOrientations(
+        int centerOffset, int topOffset, DockSide expected)
+    {
+        // Use one consistent monitor coordinate system, including a nonzero origin.
+        // Scaling all pixel coordinates equally must preserve the decision.
+        foreach (var scale in new[] { 1, 2 })
+        foreach (var (width, height) in new[] { (80, 48), (48, 80) })
+        {
+            var workArea = new PixelRect(-2400, 40, -2400 + 1920 * scale, 40 + 1040 * scale);
+            var left = workArea.Left + centerOffset * scale - width * scale / 2;
+            var top = workArea.Top + topOffset * scale;
+            var window = new PixelRect(left, top, left + width * scale, top + height * scale);
+
+            Assert.Equal(expected,
+                WindowPlacementCalculator.ChooseNearestDockSide(window, workArea));
+        }
+    }
+
+    [Theory]
     [InlineData(-20, 0)]
     [InlineData(120, 120)]
     [InlineData(900, 632)]

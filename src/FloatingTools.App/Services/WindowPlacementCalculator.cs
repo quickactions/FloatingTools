@@ -9,7 +9,13 @@ public static class WindowPlacementCalculator
         var distanceFromLeft = Math.Abs((long)window.Left - workArea.Left);
         var distanceFromRight = Math.Abs((long)workArea.Right - window.Right);
         var distanceFromTop = Math.Abs((long)window.Top - workArea.Top);
-        if (distanceFromTop < Math.Min(distanceFromLeft, distanceFromRight)) return DockSide.Top;
+        var centerX = window.Left + window.Width / 2.0;
+        var cornerZone = workArea.Width * 0.15;
+        var nearLeftCorner = centerX - workArea.Left <= cornerZone;
+        var nearRightCorner = workArea.Right - centerX <= cornerZone;
+        if (distanceFromTop < Math.Min(distanceFromLeft, distanceFromRight)
+            && !nearLeftCorner && !nearRightCorner)
+            return DockSide.Top;
         return distanceFromLeft <= distanceFromRight ? DockSide.Left : DockSide.Right;
     }
 
